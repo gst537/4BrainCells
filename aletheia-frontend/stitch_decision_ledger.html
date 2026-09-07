@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Decision Ledger - ALETHEIA</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                "on-error-container": "#ffdad6",
+                "outline": "#849495",
+                "surface-variant": "#353436",
+                "tertiary-container": "#dbdde3",
+                "primary-fixed": "#63f7ff",
+                "on-surface": "#e5e2e3",
+                "inverse-on-surface": "#313031",
+                "primary-container": "#00f5ff",
+                "on-tertiary-container": "#5e6166",
+                "secondary": "#ffdb9d",
+                "error-container": "#93000a",
+                "on-secondary-fixed-variant": "#5e4200",
+                "on-primary-container": "#006c71",
+                "on-primary-fixed": "#002021",
+                "on-background": "#e5e2e3",
+                "on-tertiary-fixed-variant": "#44474b",
+                "surface-tint": "#00dce5",
+                "surface-container-lowest": "#0e0e0f",
+                "on-primary": "#003739",
+                "secondary-fixed-dim": "#ffba20",
+                "secondary-container": "#feb700",
+                "on-primary-fixed-variant": "#004f53",
+                "surface-container-highest": "#353436",
+                "on-surface-variant": "#b9caca",
+                "inverse-primary": "#00696e",
+                "surface-dim": "#131314",
+                "on-error": "#690005",
+                "surface": "#131314",
+                "on-secondary-fixed": "#271900",
+                "secondary-fixed": "#ffdea8",
+                "error": "#ffb4ab",
+                "tertiary-fixed": "#e0e2e8",
+                "on-tertiary": "#2d3135",
+                "background": "#131314",
+                "surface-container-low": "#1c1b1c",
+                "on-tertiary-fixed": "#181c20",
+                "surface-container": "#201f20",
+                "surface-container-high": "#2a2a2b",
+                "tertiary": "#f8faff",
+                "on-secondary": "#412d00",
+                "tertiary-fixed-dim": "#c4c6cc",
+                "inverse-surface": "#e5e2e3",
+                "primary-fixed-dim": "#00dce5",
+                "outline-variant": "#3a494a",
+                "primary": "#e9feff",
+                "on-secondary-container": "#6b4b00",
+                "surface-bright": "#3a393a"
+              },
+              "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+              },
+              "spacing": {
+                "xs": "4px",
+                "base": "4px",
+                "margin-mobile": "16px",
+                "lg": "24px",
+                "xl": "40px",
+                "md": "16px",
+                "margin-desktop": "48px",
+                "sm": "8px",
+                "gutter": "20px"
+              },
+              "fontFamily": {
+                "label-caps": [
+                  "Inter"
+                ],
+                "headline-lg": [
+                  "Inter"
+                ],
+                "body-sm": [
+                  "Inter"
+                ],
+                "audit-mono": [
+                  "JetBrains Mono"
+                ],
+                "headline-lg-mobile": [
+                  "Inter"
+                ],
+                "body-md": [
+                  "Inter"
+                ],
+                "display-lg": [
+                  "Inter"
+                ]
+              },
+              "fontSize": {
+                "label-caps": [
+                  "12px",
+                  {
+                    "lineHeight": "16px",
+                    "letterSpacing": "0.05em",
+                    "fontWeight": "600"
+                  }
+                ],
+                "headline-lg": [
+                  "32px",
+                  {
+                    "lineHeight": "40px",
+                    "letterSpacing": "-0.01em",
+                    "fontWeight": "600"
+                  }
+                ],
+                "body-sm": [
+                  "14px",
+                  {
+                    "lineHeight": "20px",
+                    "fontWeight": "400"
+                  }
+                ],
+                "audit-mono": [
+                  "13px",
+                  {
+                    "lineHeight": "18px",
+                    "letterSpacing": "0.01em",
+                    "fontWeight": "450"
+                  }
+                ],
+                "headline-lg-mobile": [
+                  "24px",
+                  {
+                    "lineHeight": "32px",
+                    "fontWeight": "600"
+                  }
+                ],
+                "body-md": [
+                  "16px",
+                  {
+                    "lineHeight": "24px",
+                    "fontWeight": "400"
+                  }
+                ],
+                "display-lg": [
+                  "48px",
+                  {
+                    "lineHeight": "56px",
+                    "letterSpacing": "-0.02em",
+                    "fontWeight": "700"
+                  }
+                ]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        .glass-panel {
+            background: rgba(22, 22, 24, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(132, 148, 149, 0.2);
+        }
+        .glow-hover:hover {
+            box-shadow: inset 0 0 20px rgba(0, 245, 255, 0.1);
+            border-left-color: #00f5ff;
+        }
+        /* Custom Scrollbar for Drawer */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #131314; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3a494a; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #849495; 
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md h-screen overflow-hidden flex selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar -->
+<nav class="w-[280px] h-full fixed left-0 top-0 bg-surface dark:bg-surface bg-surface-container-low border-r border-outline-variant flex flex-col h-full py-lg z-40 hidden md:flex">
+<div class="px-lg mb-xl">
+<h1 class="font-display-lg text-display-lg text-primary-container tracking-tighter">ALETHEIA</h1>
+<p class="font-audit-mono text-audit-mono text-on-surface-variant mt-sm">Institutional Memory</p>
+</div>
+<div class="flex-1 flex flex-col gap-sm px-md">
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-container-highest hover:text-on-surface transition-colors scale-98 active:opacity-80 transition-all" href="#">
+<span class="material-symbols-outlined">hub</span>
+<span class="font-label-caps text-label-caps">Knowledge Graph</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-primary-container border-l-2 border-primary-container bg-surface-container-high font-bold hover:bg-surface-container-highest hover:text-on-surface transition-colors scale-98 active:opacity-80 transition-all" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-label-caps text-label-caps">Decision Ledger</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-container-highest hover:text-on-surface transition-colors scale-98 active:opacity-80 transition-all" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-label-caps text-label-caps">Why Chat</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-container-highest hover:text-on-surface transition-colors scale-98 active:opacity-80 transition-all" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-label-caps text-label-caps">Audit Trails</span>
+</a>
+</div>
+<div class="px-lg mt-auto">
+<button class="w-full bg-primary-container text-on-primary-container font-label-caps text-label-caps py-sm rounded hover:bg-primary-fixed transition-colors">
+                New Decision Trace
+            </button>
+<div class="mt-lg flex items-center gap-md">
+<img alt="Executive User Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant" data-alt="Close up of a highly detailed, professional avatar for an executive user in a corporate setting. The background is a sleek, dark modern office with subtle blue ambient lighting. The style is hyper-realistic and authoritative, fitting for a decision intelligence platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZ_uJZpjBqxHzmY6P8nolCysRe4DEL7aZSJZ6av1lrwTrhTSWZEjXF46dEZPCmX8tyLIfrmYeYH5gNsWhSbesmArLN7VwsWBtnVOPzLokUIuul_VzcgJP1zstY_EKqJf7ZHj1Nwo8cIqhWE8E3RNov2e0R4Ti6I9aLZguDMLuELruhNVYZH747dgMkGJKHSU9J3K__KkqXcKZ-TeNqgEpwaXla0UNeofF0gVdxWFIKU8Y7Oa1rTefWPMvmzXAPI6HgsmP8UIesMZ8"/>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col h-full ml-0 md:ml-[280px] relative">
+<!-- TopAppBar -->
+<header class="docked full-width top-0 z-50 bg-surface/95 dark:bg-surface/95 backdrop-blur-xl bg-surface-container/40 border-b border-outline-variant flex justify-between items-center h-16 px-lg">
+<div class="flex items-center gap-lg w-1/3">
+<div class="relative w-full max-w-md focus-within:ring-1 focus-within:ring-primary-container rounded">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-dim border border-outline-variant rounded py-sm pl-xl pr-sm text-on-surface placeholder:text-on-surface-variant font-body-sm text-body-sm focus:outline-none focus:border-primary-container transition-colors" placeholder="Search Ledger..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="text-on-surface-variant hover:text-primary-fixed-dim transition-opacity p-xs">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary-fixed-dim transition-opacity p-xs">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary-fixed-dim transition-opacity p-xs">
+<span class="material-symbols-outlined">cloud_done</span>
+</button>
+<img alt="Executive Profile" class="w-8 h-8 rounded-full object-cover border border-outline-variant md:hidden" data-alt="Close up of a highly detailed, professional avatar for an executive user in a corporate setting. The background is a sleek, dark modern office with subtle blue ambient lighting. The style is hyper-realistic and authoritative, fitting for a decision intelligence platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJgQLcjus4mRpkM7ehejyhLNYCDgxZKvSrDOvrsR0jFSNZNpA0smFkfbDzAHRfZTZ78ZFL2TlLYI0Zxq5p6R6iv-2TpWmwvn0C265nhJBZ-j4lFstz1GGz-IWINrbxKMnKIZQnIsjyNjqhFAtYL8SNHev-6R7TvYWGMfibb5pU98BMi-xSYeNAXnsSAMon3nIwnHOHgP12LstX2BodnCxlcMNUk0F2jVCI7h4uGIAlLbxCNJU3S048eHKLBEMkRQSAEElm0MkS1TY"/>
+</div>
+</header>
+<!-- Ledger Content -->
+<div class="flex-1 overflow-auto p-lg lg:p-margin-desktop bg-surface relative">
+<div class="max-w-7xl mx-auto w-full">
+<div class="flex justify-between items-end mb-lg">
+<div>
+<h2 class="font-headline-lg text-headline-lg md:font-headline-lg-mobile md:text-headline-lg-mobile font-bold text-on-surface mb-xs">Decision Ledger</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Tracking high-impact institutional choices.</p>
+</div>
+<div class="flex gap-sm">
+<button class="px-md py-sm border border-outline-variant text-on-surface font-label-caps text-label-caps rounded flex items-center gap-sm hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span> Filter
+                        </button>
+<button class="px-md py-sm border border-outline-variant text-on-surface font-label-caps text-label-caps rounded flex items-center gap-sm hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span> Export
+                        </button>
+</div>
+</div>
+<!-- Data Table (Bento/Card style rows) -->
+<div class="flex flex-col gap-sm">
+<!-- Table Header -->
+<div class="grid grid-cols-12 gap-gutter px-md py-sm border-b border-outline-variant font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider hidden md:grid">
+<div class="col-span-2">Decision ID</div>
+<div class="col-span-3">Title</div>
+<div class="col-span-2">Primary Owner</div>
+<div class="col-span-2">Confidence</div>
+<div class="col-span-1">Status</div>
+<div class="col-span-2 text-right">Date</div>
+</div>
+<!-- Row 1 (Approved) -->
+<div class="glass-panel rounded border-l-2 border-l-outline-variant glow-hover cursor-pointer grid grid-cols-1 md:grid-cols-12 gap-y-sm md:gap-gutter p-md items-center transition-all group" onclick="toggleDrawer(true)">
+<div class="col-span-2 font-audit-mono text-audit-mono text-on-surface-variant group-hover:text-primary-container transition-colors">
+                            DEC-2023-089
+                        </div>
+<div class="col-span-3 font-body-md text-body-md text-on-surface font-medium">
+                            Acquisition of NeuralTech Labs
+                        </div>
+<div class="col-span-2 flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center font-label-caps text-label-caps text-on-surface text-[10px]">EL</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">E. Larson</span>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-sm w-full max-w-[120px]">
+<span class="font-audit-mono text-audit-mono text-on-surface text-[11px]">92%</span>
+<div class="flex-1 h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[92%]"></div>
+</div>
+</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center px-2 py-1 rounded bg-primary-container/10 text-primary-container font-audit-mono text-audit-mono text-[10px] border border-primary-container/20">Approved</span>
+</div>
+<div class="col-span-2 font-audit-mono text-audit-mono text-on-surface-variant md:text-right text-[12px]">
+                            2023-10-24 14:30
+                        </div>
+</div>
+<!-- Row 2 (Pending) -->
+<div class="glass-panel rounded border-l-2 border-l-secondary glow-hover cursor-pointer grid grid-cols-1 md:grid-cols-12 gap-y-sm md:gap-gutter p-md items-center transition-all group">
+<div class="col-span-2 font-audit-mono text-audit-mono text-on-surface-variant group-hover:text-secondary transition-colors">
+                            DEC-2023-090
+                        </div>
+<div class="col-span-3 font-body-md text-body-md text-on-surface font-medium">
+                            Q4 Infrastructure Budget Reallocation
+                        </div>
+<div class="col-span-2 flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center font-label-caps text-label-caps text-on-surface text-[10px]">MK</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">M. Kovač</span>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-sm w-full max-w-[120px]">
+<span class="font-audit-mono text-audit-mono text-on-surface text-[11px]">65%</span>
+<div class="flex-1 h-1 bg-surface-container-highest rounded-full overflow-hidden relative">
+<div class="h-full bg-secondary w-[65%] animate-pulse"></div>
+</div>
+</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center px-2 py-1 rounded bg-secondary/10 text-secondary font-audit-mono text-audit-mono text-[10px] border border-secondary/20">Pending</span>
+</div>
+<div class="col-span-2 font-audit-mono text-audit-mono text-on-surface-variant md:text-right text-[12px]">
+                            2023-10-25 09:15
+                        </div>
+</div>
+<!-- Row 3 (Contested) -->
+<div class="glass-panel rounded border-l-2 border-l-error glow-hover cursor-pointer grid grid-cols-1 md:grid-cols-12 gap-y-sm md:gap-gutter p-md items-center transition-all group">
+<div class="col-span-2 font-audit-mono text-audit-mono text-on-surface-variant group-hover:text-error transition-colors">
+                            DEC-2023-085
+                        </div>
+<div class="col-span-3 font-body-md text-body-md text-on-surface font-medium">
+                            Deprecation of Legacy Auth V1
+                        </div>
+<div class="col-span-2 flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center font-label-caps text-label-caps text-on-surface text-[10px]">JR</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">J. Reynolds</span>
+</div>
+<div class="col-span-2">
+<div class="flex items-center gap-sm w-full max-w-[120px]">
+<span class="font-audit-mono text-audit-mono text-on-surface text-[11px]">42%</span>
+<div class="flex-1 h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-error w-[42%]"></div>
+</div>
+</div>
+</div>
+<div class="col-span-1">
+<span class="inline-flex items-center px-2 py-1 rounded bg-error/10 text-error font-audit-mono text-audit-mono text-[10px] border border-error/20">Contested</span>
+</div>
+<div class="col-span-2 font-audit-mono text-audit-mono text-on-surface-variant md:text-right text-[12px]">
+                            2023-10-22 16:45
+                        </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Drawer Overlay -->
+<div class="absolute inset-0 bg-background/50 backdrop-blur-sm z-40 hidden transition-opacity" id="drawer-overlay" onclick="toggleDrawer(false)"></div>
+<!-- Side Drawer Content -->
+<aside class="absolute right-0 top-16 bottom-0 w-full md:w-[400px] bg-surface-container-low border-l border-outline-variant z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col shadow-2xl" id="side-drawer">
+<div class="p-lg border-b border-outline-variant flex justify-between items-start">
+<div>
+<span class="font-audit-mono text-audit-mono text-primary-container text-[12px] mb-xs block">DEC-2023-089</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-bold">Acquisition of NeuralTech Labs</h3>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface p-xs" onclick="toggleDrawer(false)">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="p-lg flex-1 overflow-y-auto flex flex-col gap-lg">
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-sm">Decision Summary</h4>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+                        Strategic acquisition to integrate advanced natural language processing capabilities into core product suite. Estimated timeline: 6 months to full integration. Projected ROI increase of 14% YOY.
+                    </p>
+</div>
+<div class="grid grid-cols-2 gap-md">
+<div class="bg-surface-container p-md rounded border border-outline-variant/50">
+<span class="block font-label-caps text-label-caps text-on-surface-variant mb-xs">Primary Owner</span>
+<span class="font-body-sm text-body-sm text-on-surface">Elena Larson</span>
+</div>
+<div class="bg-surface-container p-md rounded border border-outline-variant/50">
+<span class="block font-label-caps text-label-caps text-on-surface-variant mb-xs">Department</span>
+<span class="font-body-sm text-body-sm text-on-surface">Corporate Strategy</span>
+</div>
+</div>
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-sm">Traceability Nodes</h4>
+<div class="flex flex-col gap-sm relative before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-[1px] before:bg-outline-variant before:border-l-dashed">
+<div class="flex gap-md relative z-10">
+<div class="w-6 h-6 rounded-full bg-primary-container/20 border border-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[14px] text-primary-container">check</span>
+</div>
+<div>
+<p class="font-body-sm text-body-sm text-on-surface">Final Approval Granted</p>
+<span class="font-audit-mono text-audit-mono text-on-surface-variant text-[11px]">2023-10-24 14:30</span>
+</div>
+</div>
+<div class="flex gap-md relative z-10">
+<div class="w-6 h-6 rounded-full bg-surface-container border border-outline flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">balance</span>
+</div>
+<div>
+<p class="font-body-sm text-body-sm text-on-surface">Risk Assessment Completed</p>
+<span class="font-audit-mono text-audit-mono text-on-surface-variant text-[11px]">2023-10-20 09:15</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-lg border-t border-outline-variant bg-surface-container-lowest">
+<button class="w-full bg-transparent border border-primary-container text-primary-container font-label-caps text-label-caps py-md rounded flex items-center justify-center gap-sm hover:bg-primary-container/10 transition-colors">
+<span class="material-symbols-outlined">psychology</span>
+                    Open in Why Chat
+                </button>
+</div>
+</aside>
+</main>
+<script>
+        function toggleDrawer(open) {
+            const drawer = document.getElementById('side-drawer');
+            const overlay = document.getElementById('drawer-overlay');
+            if (open) {
+                drawer.classList.remove('translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                drawer.classList.add('translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+    </script>
+</body></html>
