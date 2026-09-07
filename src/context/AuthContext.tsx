@@ -5,6 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
   token: string | null;
+  role: 'viewer' | 'contributor' | 'admin' | null;
+  canEdit: boolean;
   login: (token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
@@ -12,6 +14,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
+  role: null,
+  canEdit: false,
   login: () => {},
   logout: () => {},
   isAuthenticated: false,
@@ -19,18 +23,28 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
+  const [role, setRole] = useState<'viewer' | 'contributor' | 'admin' | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+
+  const decodeRole = (jwt: string): 'viewer' | 'contributor' | 'admin' => {
+    try {
+      const payload = JSON.parse(atob(jwt.split('.')[1]));
+      return payload.role || 'viewer';
+    } catch {
+      return 'viewer';
+    }
+  };
 
   useEffect(() => {
     const storedToken = localStorage.getItem('jwt');
     if (storedToken) {
       setToken(storedToken);
+      setRole(decodeRole(storedToken));
       setIsInitializing(false);
     } else if (pathname !== '/login') {
       router.push('/login');
-      // keep isInitializing true to prevent flash of content
     } else {
       setIsInitializing(false);
     }
@@ -39,14 +53,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = (newToken: string) => {
     localStorage.setItem('jwt', newToken);
     setToken(newToken);
+    setRole(decodeRole(newToken));
     router.push('/');
   };
 
   const logout = () => {
     localStorage.removeItem('jwt');
     setToken(null);
+    setRole(null);
     router.push('/login');
   };
+
+  const canEdit = role === 'contributor' || role === 'admin';
 
   if (isInitializing) {
     return (
@@ -57,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ token, role, canEdit, login, logout, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   );
