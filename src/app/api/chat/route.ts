@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { getGraph } from '../../lib/db';
-import { requireAuth } from '../../lib/auth';
+import { getGraph } from '../../../lib/db';
+import { requireAuth } from '../../../lib/auth';
 
 
 const postHandler = async (request: Request) => {

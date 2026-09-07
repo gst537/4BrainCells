@@ -143,15 +143,20 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
     } catch (error) {
       console.error('Chat error:', error);
       setIsThinking(false);
-      const errorMessage: ChatMessage = {
-        id: `err-${Date.now()}`,
-        sender: 'assistant',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: 'Sorry, I encountered an error connecting to the AI backend.',
-        confidenceScore: 0,
-        confidenceLevel: 'not_found'
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      const fallbackMsg = precalculatedAnswers[queryText];
+      if (fallbackMsg) {
+        setMessages(prev => [...prev, fallbackMsg]);
+      } else {
+        const errorMessage: ChatMessage = {
+          id: `err-${Date.now()}`,
+          sender: 'assistant',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: 'Sorry, I encountered an error connecting to the AI backend and no precalculated answer was found.',
+          confidenceScore: 0,
+          confidenceLevel: 'not_found'
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
     }
   };
 

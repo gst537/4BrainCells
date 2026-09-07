@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   keywords: ["Institutional Memory", "Decision Traceability", "ALETHEIA", "Knowledge Graph", "RAG", "Audit Trail"],
 };
 
+import { AuthProvider } from '@/context/AuthContext';
+import { ClientAppLayout } from '@/components/ClientAppLayout';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,7 +29,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[#07080c] text-white selection:bg-cyan-500/30 selection:text-cyan-200">
-        {children}
+        <AuthProvider>
+          <ClientAppLayout>
+            {children}
+          </ClientAppLayout>
+        </AuthProvider>
       </body>
     </html>
   );

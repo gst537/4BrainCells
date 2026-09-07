@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_me_to_a_secret';
 
-export const generateToken = (payload: object, expiresIn = '7d') => {
+export const generateToken = (payload: object, expiresIn: any = '7d') => {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
@@ -16,8 +16,7 @@ export const verifyToken = (token: string) => {
   }
 };
 
-/** Higher‑order wrapper for API route handlers */
-export const requireAuth = (handler: (req: Request) => Promise<NextResponse>) => {
+export const requireAuth = (handler: (req: Request) => Promise<NextResponse | Response>) => {
   return async (req: Request) => {
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

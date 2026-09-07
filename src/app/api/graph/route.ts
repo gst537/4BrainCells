@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getGraph, saveGraph } from '../../lib/db';
-import { requireAuth } from '../../lib/auth';
+import { getGraph, saveGraph } from '../../../lib/db';
+import { requireAuth } from '../../../lib/auth';
 
 // GET graph data from PostgreSQL (or fallback DB helper)
 const getHandler = async (request: Request) => {
