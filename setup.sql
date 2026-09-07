@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS nodes (
+  id TEXT PRIMARY KEY,
+  type TEXT,
+  data JSONB
+);
+
+CREATE TABLE IF NOT EXISTS edges (
+  id SERIAL PRIMARY KEY,
+  source TEXT NOT NULL,
+  target TEXT NOT NULL,
+  label TEXT
+);

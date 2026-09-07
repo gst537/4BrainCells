@@ -1,32 +1,32 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { getGraph, saveGraph } from '../../lib/db';
+import { requireAuth } from '../../lib/auth';
 
-const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'graphMock.json');
-
-export async function GET() {
+// GET graph data from PostgreSQL (or fallback DB helper)
+const getHandler = async (request: Request) => {
   try {
-    const data = await fs.readFile(DATA_FILE_PATH, 'utf-8');
-    return NextResponse.json(JSON.parse(data));
+    const data = await getGraph();
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Failed to read graph data:', error);
-    return NextResponse.json({ error: 'Failed to read graph data' }, { status: 500 });
+    console.error('Failed to fetch graph data:', error);
+    return NextResponse.json({ error: 'Failed to fetch graph data' }, { status: 500 });
   }
-}
+};
 
-export async function POST(request: Request) {
+// POST new graph data (replace all nodes/edges)
+const postHandler = async (request: Request) => {
   try {
     const body = await request.json();
-    
-    // Basic validation
     if (!body.nodes || !body.edges) {
       return NextResponse.json({ error: 'Invalid payload: missing nodes or edges' }, { status: 400 });
     }
-
-    await fs.writeFile(DATA_FILE_PATH, JSON.stringify(body, null, 2), 'utf-8');
+    await saveGraph(body.nodes, body.edges);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to write graph data:', error);
     return NextResponse.json({ error: 'Failed to write graph data' }, { status: 500 });
   }
-}
+};
+
+export const GET = requireAuth(getHandler);
+export const POST = requireAuth(postHandler);
