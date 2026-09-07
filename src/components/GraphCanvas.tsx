@@ -229,6 +229,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       case 'document': return { border: 'border-indigo-400', bg: 'bg-indigo-950/40', text: 'text-indigo-300', glow: 'shadow-[0_0_20px_rgba(129,140,248,0.3)]' };
       case 'person': return { border: 'border-emerald-400', bg: 'bg-emerald-950/40', text: 'text-emerald-300', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.3)]' };
       case 'event': return { border: 'border-amber-400', bg: 'bg-amber-950/40', text: 'text-amber-300', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.3)]' };
+      default: return { border: 'border-cyan-400', bg: 'bg-cyan-950/40', text: 'text-cyan-300', glow: 'shadow-[0_0_20px_rgba(0,245,255,0.3)]' };
     }
   };
 
@@ -238,6 +239,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       case 'document': return <FileText className="h-4 w-4 text-indigo-400" />;
       case 'person': return <User className="h-4 w-4 text-emerald-400" />;
       case 'event': return <AlertTriangle className="h-4 w-4 text-amber-400" />;
+      default: return <GitBranch className="h-4 w-4 text-cyan-400" />;
     }
   };
 

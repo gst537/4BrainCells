@@ -2,14 +2,14 @@
 
 import React, { useEffect } from 'react';
 import { useMemory } from '@/context/MemoryContext';
-import { InquiryChatView } from '@/components/chat/InquiryChatView';
+import { DecisionLedgerView } from '@/components/ledger/DecisionLedgerView';
 
-export default function ChatPage() {
+export default function DecisionLedgerPage() {
   const { setActiveTab } = useMemory();
 
   useEffect(() => {
-    setActiveTab('why-chat');
+    setActiveTab('decision-ledger');
   }, [setActiveTab]);
 
-  return <InquiryChatView />;
+  return <DecisionLedgerView />;
 }

@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { useMemory } from '@/context/MemoryContext';
 import { InquiryChatView } from '@/components/chat/InquiryChatView';
 
-export default function ChatPage() {
+export default function WhyChatPage() {
   const { setActiveTab } = useMemory();
 
   useEffect(() => {

@@ -1,24 +1,15 @@
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { DecisionLedger } from '@/components/DecisionLedger';
-import { mockDecisions } from '@/data/mockData';
+import React, { useEffect } from 'react';
+import { useMemory } from '@/context/MemoryContext';
+import { DecisionLedgerView } from '@/components/ledger/DecisionLedgerView';
 
 export default function LedgerPage() {
-  const router = useRouter();
+  const { setActiveTab } = useMemory();
 
-  return (
-    <div className="flex-1 bg-[#0a0b10] p-6 min-h-0 overflow-y-auto">
-      <div className="max-w-6xl mx-auto h-full pb-10">
-        <DecisionLedger 
-          decisions={mockDecisions} 
-          onSelectDecisionInGraph={(id) => router.push(`/graph?node=${id}`)}
-          onAskWhyInChat={(q) => router.push(`/chat?q=${encodeURIComponent(q)}`)}
-          onSelectEvidence={(id) => router.push(`/vault?id=${id}`)}
-          densityMode="executive"
-        />
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    setActiveTab('decision-ledger');
+  }, [setActiveTab]);
+
+  return <DecisionLedgerView />;
 }

@@ -13,12 +13,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ALETHEIA — Intelligent Institutional Memory & Decision Traceability | 4BrainCells",
-  description: "Connects organizational documents, people, events, and decisions, allowing users to trace what happened, why it happened, and the evidence behind it.",
+  title: "ALETHEIA — Institutional Memory & Decision Traceability",
+  description: "Connects organizational choices, people, events, and evidence into an explainable institutional memory graph.",
   keywords: ["Institutional Memory", "Decision Traceability", "ALETHEIA", "Knowledge Graph", "RAG", "Audit Trail"],
 };
 
 import { AuthProvider } from '@/context/AuthContext';
+import { MemoryProvider } from '@/context/MemoryContext';
 import { ClientAppLayout } from '@/components/ClientAppLayout';
 
 export default function RootLayout({
@@ -28,11 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#07080c] text-white selection:bg-cyan-500/30 selection:text-cyan-200">
+      <body className="h-full flex bg-[#101010] text-[#F2F2F2] selection:bg-[#00E5FF]/30 selection:text-[#00E5FF] overflow-hidden">
         <AuthProvider>
-          <ClientAppLayout>
-            {children}
-          </ClientAppLayout>
+          <MemoryProvider>
+            <ClientAppLayout>
+              {children}
+            </ClientAppLayout>
+          </MemoryProvider>
         </AuthProvider>
       </body>
     </html>

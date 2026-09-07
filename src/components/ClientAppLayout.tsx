@@ -1,44 +1,64 @@
 'use client';
 
-import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { Navbar } from './Navbar';
-import { SearchModal } from './SearchModal';
+import React, { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useMemory } from '@/context/MemoryContext';
+import { AppSidebar } from './layout/AppSidebar';
+import { AppTopBar } from './layout/AppTopBar';
+
+import { DecisionDetailDrawer } from './drawers/DecisionDetailDrawer';
+import { NewDecisionTraceModal } from './modals/NewDecisionTraceModal';
+import { DocumentModal } from './modals/DocumentModal';
+import { ThreadModal } from './modals/ThreadModal';
+import { PersonModal } from './modals/PersonModal';
+import { GlobalSearchModal } from './modals/GlobalSearchModal';
 
 export function ClientAppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [densityMode, setDensityMode] = useState<'executive' | 'analyst'>('executive');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const router = useRouter();
+  const { activeTab, setActiveTab } = useMemory();
 
-  // Don't show Navbar or Search on the login page
+  // Sync route with activeTab
+  useEffect(() => {
+    if (pathname === '/chat' || pathname === '/why-chat') {
+      if (activeTab !== 'why-chat') setActiveTab('why-chat');
+    } else if (pathname === '/ledger' || pathname === '/decision-ledger') {
+      if (activeTab !== 'decision-ledger') setActiveTab('decision-ledger');
+    } else if (pathname === '/graph' || pathname === '/knowledge-graph') {
+      if (activeTab !== 'knowledge-graph') setActiveTab('knowledge-graph');
+    }
+  }, [pathname, activeTab, setActiveTab]);
+
+  // Don't show shell on the login page
   if (pathname === '/login') {
     return <>{children}</>;
   }
 
   return (
-    <>
-      <Navbar
-        densityMode={densityMode}
-        setDensityMode={setDensityMode}
-        onOpenSearch={() => setIsSearchOpen(true)}
-      />
+    <div className="flex h-screen w-screen overflow-hidden bg-[#101010] text-[#F2F2F2]">
       
-      {/* We can pass densityMode to children using React Context if needed, but for now we'll just keep it here as global layout state */}
-      
-      <main className="flex-1 flex flex-col min-h-0">
-        {children}
-      </main>
+      {/* Persistent Left Sidebar matching Screenshots */}
+      <AppSidebar />
 
-      {isSearchOpen && (
-        <SearchModal
-          isOpen={isSearchOpen}
-          onClose={() => setIsSearchOpen(false)}
-          nodes={[]} // TODO: Fetch nodes globally or pass via context if needed globally
-          onSelectNode={(node) => {
-            console.log('Selected:', node);
-          }}
-        />
-      )}
-    </>
+      {/* Main App Container */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Top Bar */}
+        <AppTopBar />
+
+        {/* Viewport Content */}
+        <main className="flex-1 overflow-hidden flex flex-col relative">
+          {children}
+        </main>
+      </div>
+
+      {/* Global Modals & Drawers */}
+      <DecisionDetailDrawer />
+      <NewDecisionTraceModal />
+      <DocumentModal />
+      <ThreadModal />
+      <PersonModal />
+      <GlobalSearchModal />
+
+    </div>
   );
 }

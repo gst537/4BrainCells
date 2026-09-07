@@ -2,14 +2,14 @@
 
 import React, { useEffect } from 'react';
 import { useMemory } from '@/context/MemoryContext';
-import { InquiryChatView } from '@/components/chat/InquiryChatView';
+import { KnowledgeGraphView } from '@/components/graph/KnowledgeGraphView';
 
-export default function ChatPage() {
+export default function KnowledgeGraphPage() {
   const { setActiveTab } = useMemory();
 
   useEffect(() => {
-    setActiveTab('why-chat');
+    setActiveTab('knowledge-graph');
   }, [setActiveTab]);
 
-  return <InquiryChatView />;
+  return <KnowledgeGraphView />;
 }
