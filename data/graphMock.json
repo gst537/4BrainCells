@@ -1,0 +1,115 @@
+{
+  "nodes": [
+    {
+      "id": "person-1",
+      "type": "personNode",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Alice Chen",
+        "role": "Lead Architect",
+        "department": "Engineering"
+      }
+    },
+    {
+      "id": "person-2",
+      "type": "personNode",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Bob Smith",
+        "role": "VP of Engineering",
+        "department": "Management"
+      }
+    },
+    {
+      "id": "doc-1",
+      "type": "documentNode",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Email: Project Titan Delay",
+        "date": "2023-09-01",
+        "content": "Due to unforeseen API rate limit issues with our third-party vendor, I recommend we delay the Q3 launch of Project Titan by two weeks.",
+        "authorId": "person-1"
+      }
+    },
+    {
+      "id": "decision-1",
+      "type": "decisionNode",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Delay Project Titan",
+        "status": "Approved",
+        "date": "2023-09-02"
+      }
+    },
+    {
+      "id": "doc-2",
+      "type": "documentNode",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Meeting Notes: Titan Steering Committee",
+        "date": "2023-09-05",
+        "content": "We discussed the API limits. The vendor agreed to temporarily raise our limits for the launch. Bob confirmed we can stick to the original timeline. The delay is off.",
+        "authorId": "person-2"
+      }
+    },
+    {
+      "id": "decision-2",
+      "type": "decisionNode",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "label": "Revert Titan Delay (Expedite)",
+        "status": "Approved",
+        "date": "2023-09-06"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-doc1-dec1",
+      "source": "doc-1",
+      "target": "decision-1",
+      "label": "SUPPORTS",
+      "type": "default"
+    },
+    {
+      "id": "e-doc2-doc1",
+      "source": "doc-2",
+      "target": "doc-1",
+      "label": "CONTRADICTS",
+      "type": "default",
+      "style": { "stroke": "#ef4444", "strokeWidth": 2 },
+      "animated": true
+    },
+    {
+      "id": "e-doc2-dec2",
+      "source": "doc-2",
+      "target": "decision-2",
+      "label": "SUPPORTS",
+      "type": "default"
+    },
+    {
+      "id": "e-dec2-dec1",
+      "source": "decision-2",
+      "target": "decision-1",
+      "label": "REVERSES",
+      "type": "default",
+      "style": { "stroke": "#f59e0b", "strokeWidth": 2, "strokeDasharray": "5,5" }
+    },
+    {
+      "id": "e-p1-doc1",
+      "source": "person-1",
+      "target": "doc-1",
+      "label": "AUTHORED_BY",
+      "type": "default",
+      "style": { "stroke": "#64748b" }
+    },
+    {
+      "id": "e-p2-doc2",
+      "source": "person-2",
+      "target": "doc-2",
+      "label": "AUTHORED_BY",
+      "type": "default",
+      "style": { "stroke": "#64748b" }
+    }
+  ]
+}
