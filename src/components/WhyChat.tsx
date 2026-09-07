@@ -217,9 +217,27 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
       // (unexpected server behavior), still surface an honest confidence gate
       // instead of leaving the message with no confidence indicator.
       if (!metaPayload) {
+        // Detect low-confidence phrases in the AI's response text
+        const lowEvidencePhrases = /not enough evidence|cannot find|no evidence|insufficient|do not have enough|no information|not found|unable to locate|not in the graph|no record/i;
+        const strongPhrases = /according to|as documented in|based on|referenced in|per the|as stated in|the graph shows/i;
+        let inferredScore: number;
+        let inferredLevel: 'strong' | 'weak' | 'not_found';
+        if (!fullText) {
+          inferredScore = 0;
+          inferredLevel = 'not_found';
+        } else if (lowEvidencePhrases.test(fullText)) {
+          inferredScore = 15;
+          inferredLevel = 'not_found';
+        } else if (strongPhrases.test(fullText)) {
+          inferredScore = 88;
+          inferredLevel = 'strong';
+        } else {
+          inferredScore = 55;
+          inferredLevel = 'weak';
+        }
         metaPayload = {
-          confidenceScore: fullText ? 60 : 0,
-          confidenceLevel: fullText ? 'weak' : 'not_found'
+          confidenceScore: inferredScore,
+          confidenceLevel: inferredLevel
         };
         setMessages(prev => prev.map(m => {
           if (m.id === asstId && m.confidenceScore === undefined) {
@@ -346,10 +364,15 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
                           <ShieldCheck className="h-3.5 w-3.5" />
                           <span>STRONG CONFIDENCE ({msg.confidenceScore}%)</span>
                         </div>
-                      ) : (
+                      ) : msg.confidenceLevel === 'weak' ? (
                         <div className="flex items-center space-x-1.5 text-amber-400 font-mono text-[11px] font-semibold bg-amber-950/60 px-2.5 py-1 rounded-lg border border-amber-500/30">
                           <AlertTriangle className="h-3.5 w-3.5" />
-                          <span>CONFIDENCE GATE TRIGGERED ({msg.confidenceScore}%)</span>
+                          <span>LOW EVIDENCE — Verify Independently ({msg.confidenceScore}%)</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-1.5 text-red-400 font-mono text-[11px] font-semibold bg-red-950/60 px-2.5 py-1 rounded-lg border border-red-500/30">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>NOT FOUND IN GRAPH — Confidence Gate Active ({msg.confidenceScore}%)</span>
                         </div>
                       )}
                     </div>
