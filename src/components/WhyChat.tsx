@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Send, AlertTriangle, Sparkles } from 'lucide-react';
-import mockData from '../../data/graphMock.json';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -30,41 +29,27 @@ export default function WhyChat() {
     setInput('');
     setIsLoading(true);
 
-    // Simulate RAG + Graph traversal logic
-    setTimeout(() => {
-      let response: Message;
-      const lowerQuery = userQuery.toLowerCase();
+    const newMessages = [...messages, { role: 'user' as const, content: userQuery }];
 
-      // Pseudo-RAG routing based on the mock dataset scenarios
-      if (lowerQuery.includes('delay') || lowerQuery.includes('titan')) {
-        const doc = mockData.nodes.find((n) => n.id === 'doc-1');
-        const decision = mockData.nodes.find((n) => n.id === 'decision-1');
-        
-        response = {
-          role: 'assistant',
-          content: `The decision to "${decision?.data.label}" was made because of: "${doc?.data.content}".`,
-          citations: [doc?.data.label || ''],
-        };
-      } else if (lowerQuery.includes('revert') || lowerQuery.includes('expedite') || lowerQuery.includes('off')) {
-        const doc = mockData.nodes.find((n) => n.id === 'doc-2');
-        
-        response = {
-          role: 'assistant',
-          content: `The delay was reverted because the vendor agreed to temporarily raise the limits for launch. This was discussed by the Steering Committee.`,
-          citations: [doc?.data.label || ''],
-        };
-      } else {
-        // Feature 4: Explicit Low-Confidence Fallback
-        response = {
-          role: 'assistant',
-          content: "I don't have enough evidence in the decision ledger to confidently answer this. My context is restricted to the institutional graph.",
-          isLowConfidence: true,
-        };
-      }
-
-      setMessages((prev) => [...prev, response]);
-      setIsLoading(false);
-    }, 1000);
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: newMessages }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (data.error) {
+          setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.error}` }]);
+        } else {
+          setMessages((prev) => [...prev, data as Message]);
+        }
+      })
+      .catch(() => {
+        setMessages((prev) => [...prev, { role: 'assistant', content: 'A network error occurred.' }]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   return (
