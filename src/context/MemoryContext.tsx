@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   DecisionItem,
   GraphNode,
@@ -8,32 +8,64 @@ import {
   EvidenceDocument,
   ChatMessage,
   TimelineEvent,
-  CitationReference
+  ConfidenceBreakdown
 } from '@/types';
-import {
-  initialDecisions,
-  initialGraphNodes,
-  initialGraphEdges,
-  initialEvidence,
-  initialChatMessages,
-  initialTimelineEvents,
-  calculateConfidence
-} from '@/data/mockStore';
 
 export type NavigationTab = 'knowledge-graph' | 'decision-ledger' | 'why-chat' | 'timeline';
+
+export function calculateConfidence(breakdown: ConfidenceBreakdown): number {
+  return Math.round(
+    breakdown.evidenceCoverage * 0.35 +
+    breakdown.sourceReliability * 0.25 +
+    breakdown.attribution * 0.20 +
+    breakdown.temporalConsistency * 0.10 +
+    breakdown.approvalCompleteness * 0.10
+  );
+}
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'MSG-WELCOME',
+  sender: 'assistant',
+  timestamp: 'Online',
+  text:
+    "Ask why something was decided and I'll answer only from the institutional graph — citing the exact " +
+    'documents behind the answer. When the evidence is thin or missing, the confidence gate trips and I say so ' +
+    'instead of guessing.',
+  citations: []
+};
+
+const authHeaders = (): Record<string, string> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('jwt') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+};
 
 interface MemoryContextType {
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
-  
-  // Entities state
+
+  // Entities state (populated by search, empty until then)
   decisions: DecisionItem[];
   graphNodes: GraphNode[];
   graphEdges: GraphEdge[];
   evidence: Record<string, EvidenceDocument>;
   timelineEvents: TimelineEvent[];
   chatMessages: ChatMessage[];
-  
+
+  // Query-driven state
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  isSearching: boolean;
+  hasSearched: boolean;
+  searchError: string | null;
+  lastQuery: string;
+  performSearch: (query: string) => Promise<void>;
+  refreshSearch: () => Promise<void>;
+  clearSearch: () => void;
+  storageMode: 'connected' | 'in-memory' | null;
+
   // Selection
   selectedDecisionId: string | null;
   selectedDecision: DecisionItem | null;
@@ -42,7 +74,7 @@ interface MemoryContextType {
   selectedEvidenceId: string | null;
   selectedEvidence: EvidenceDocument | null;
   activeEvidenceRef: string;
-  
+
   // Trace Expansion
   isExpandedTrace: boolean;
   toggleExpandTrace: () => void;
@@ -61,7 +93,7 @@ interface MemoryContextType {
   selectedPerson: { name: string; role: string; department?: string } | null;
   isSearchModalOpen: boolean;
   setIsSearchModalOpen: (open: boolean) => void;
-  
+
   // Filter state
   filterStatus: string;
   setFilterStatus: (s: string) => void;
@@ -84,7 +116,10 @@ interface MemoryContextType {
   addDecisionTrace: (
     newDecision: Partial<DecisionItem>,
     mockDoc?: Partial<EvidenceDocument>
-  ) => void;
+  ) => Promise<void>;
+  createEdge: (source: string, target: string, label: GraphEdge['label'], description?: string) => Promise<void>;
+  updateNodePosition: (id: string, x: number, y: number) => Promise<void>;
+  updateNodeFields: (id: string, patch: Partial<GraphNode>) => Promise<void>;
   sendChatMessage: (text: string) => Promise<void>;
   exportLedgerCSV: () => void;
 }
@@ -92,19 +127,29 @@ interface MemoryContextType {
 const MemoryContext = createContext<MemoryContextType | undefined>(undefined);
 
 export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<NavigationTab>('why-chat');
-  
-  const [decisions, setDecisions] = useState<DecisionItem[]>(initialDecisions);
-  const [graphNodes, setGraphNodes] = useState<GraphNode[]>(initialGraphNodes);
-  const [graphEdges, setGraphEdges] = useState<GraphEdge[]>(initialGraphEdges);
-  const [evidence, setEvidence] = useState<Record<string, EvidenceDocument>>(initialEvidence);
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>(initialTimelineEvents);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
+  const [activeTab, setActiveTab] = useState<NavigationTab>('knowledge-graph');
 
-  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>('DCSN-9942');
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>('DCSN-9942');
-  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>('REF-1');
-  const [activeEvidenceRef, setActiveEvidenceRef] = useState<string>('REF-1');
+  // Institutional data — deliberately empty until a search resolves a subgraph.
+  const [decisions, setDecisions] = useState<DecisionItem[]>([]);
+  const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
+  const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
+  const [evidence, setEvidence] = useState<Record<string, EvidenceDocument>>({});
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+
+  // Query state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [lastQuery, setLastQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [storageMode, setStorageMode] = useState<'connected' | 'in-memory' | null>(null);
+  const lastQueryRef = useRef('');
+
+  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+  const [activeEvidenceRef, setActiveEvidenceRef] = useState<string>('');
   const [isExpandedTrace, setIsExpandedTrace] = useState<boolean>(false);
 
   // Modals
@@ -128,6 +173,94 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setFilterOwner('all');
     setFilterTag('all');
   };
+
+  // Surface which datastore is live so degraded mode is never silent.
+  useEffect(() => {
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(data => setStorageMode(data.db === 'connected' ? 'connected' : 'in-memory'))
+      .catch(() => setStorageMode('in-memory'));
+  }, []);
+
+  // ----------------------------------------------------------
+  // Query-driven loading
+  // ----------------------------------------------------------
+
+  const runSearch = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (!q) return;
+
+    setIsSearching(true);
+    setSearchError(null);
+    lastQueryRef.current = q;
+    setLastQuery(q);
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Search failed (${res.status})`);
+      }
+      const data = await res.json();
+
+      setGraphNodes(data.nodes || []);
+      setGraphEdges(data.edges || []);
+      setDecisions(data.decisions || []);
+      setTimelineEvents(data.timeline || []);
+
+      const evidenceMap: Record<string, EvidenceDocument> = {};
+      (data.evidence || []).forEach((doc: EvidenceDocument) => { evidenceMap[doc.id] = doc; });
+      setEvidence(evidenceMap);
+
+      // Focus the strongest match so the detail panes are never empty.
+      const firstMatchId: string | undefined = (data.matchedIds || [])[0];
+      const firstDecision = (data.decisions || [])[0] as DecisionItem | undefined;
+      setSelectedNodeId(firstMatchId || (data.nodes || [])[0]?.id || null);
+      setSelectedDecisionId(firstDecision ? firstDecision.id : null);
+      const firstEvidence = (data.evidence || [])[0] as EvidenceDocument | undefined;
+      setSelectedEvidenceId(firstEvidence ? firstEvidence.id : null);
+      setActiveEvidenceRef(firstEvidence ? firstEvidence.id : '');
+
+      setHasSearched(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Search failed';
+      setSearchError(message);
+      setGraphNodes([]);
+      setGraphEdges([]);
+      setDecisions([]);
+      setTimelineEvents([]);
+      setEvidence({});
+      setHasSearched(true);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const performSearch = useCallback(async (query: string) => {
+    setSearchQuery(query);
+    await runSearch(query);
+  }, [runSearch]);
+
+  /** Re-runs the active query — used after any mutation so the view reflects the DB. */
+  const refreshSearch = useCallback(async () => {
+    if (lastQueryRef.current) await runSearch(lastQueryRef.current);
+  }, [runSearch]);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setLastQuery('');
+    lastQueryRef.current = '';
+    setHasSearched(false);
+    setSearchError(null);
+    setGraphNodes([]);
+    setGraphEdges([]);
+    setDecisions([]);
+    setTimelineEvents([]);
+    setEvidence({});
+    setSelectedNodeId(null);
+    setSelectedDecisionId(null);
+    setSelectedEvidenceId(null);
+  }, []);
 
   // Keyboard shortcut Ctrl+K / Cmd+K
   useEffect(() => {
@@ -155,22 +288,14 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const selectDecision = (id: string | null) => {
     setSelectedDecisionId(id);
-    if (id) {
-      setIsDecisionDetailOpen(true);
-    }
+    if (id) setIsDecisionDetailOpen(true);
   };
 
-  const selectNode = (id: string | null) => {
-    setSelectedNodeId(id);
-  };
+  const selectNode = (id: string | null) => setSelectedNodeId(id);
 
   const selectEvidence = (id: string | null) => {
     setSelectedEvidenceId(id);
-    if (id === 'REF-2') {
-      setActiveEvidenceRef('REF-2');
-    } else if (id === 'REF-1') {
-      setActiveEvidenceRef('REF-1');
-    }
+    if (id) setActiveEvidenceRef(id);
   };
 
   const openPersonModal = (name: string, role: string, department?: string) => {
@@ -178,9 +303,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPersonModalOpen(true);
   };
 
-  const toggleExpandTrace = () => {
-    setIsExpandedTrace(prev => !prev);
-  };
+  const toggleExpandTrace = () => setIsExpandedTrace(prev => !prev);
 
   const jumpToGraphForDecision = (decisionId: string) => {
     setActiveTab('knowledge-graph');
@@ -188,17 +311,15 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSelectedNodeId(decisionId);
   };
 
-  const askWhyInChat = (query: string) => {
-    setActiveTab('why-chat');
-    setIsDecisionDetailOpen(false);
-    sendChatMessage(query);
-  };
+  // ----------------------------------------------------------
+  // Mutations — every one persists, then re-runs the active query
+  // ----------------------------------------------------------
 
-  const addDecisionTrace = (
+  const addDecisionTrace = async (
     newDecision: Partial<DecisionItem>,
-    mockDoc?: Partial<EvidenceDocument>
+    supportingDoc?: Partial<EvidenceDocument>
   ) => {
-    const newId = newDecision.id || `DEC-2024-${Math.floor(100 + Math.random() * 900)}`;
+    const newId = newDecision.id || `DEC-${Date.now()}`;
     const breakdown = newDecision.confidenceBreakdown || {
       evidenceCoverage: 85,
       sourceReliability: 90,
@@ -206,91 +327,118 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       temporalConsistency: 80,
       approvalCompleteness: 85
     };
-    const calculatedConf = calculateConfidence(breakdown);
+    const confidence = calculateConfidence(breakdown);
+    const docId = `EVD-${newId}`;
+    const nowDate = new Date().toISOString().split('T')[0];
 
-    const docId = `DOC-${newId}`;
-    if (mockDoc) {
-      const createdEvidence: EvidenceDocument = {
-        id: docId,
-        title: mockDoc.title || `${newDecision.title} Specification`,
-        type: mockDoc.type || 'RFC',
-        author: mockDoc.author || (newDecision.owner ? `${newDecision.owner} (${newDecision.ownerRole || 'Owner'})` : 'Author'),
-        date: new Date().toISOString(),
-        hash: `sha256:${Math.random().toString(36).substring(2, 15)}...`,
-        verified: true,
-        department: newDecision.department || 'Operations',
-        highlightSnippet: mockDoc.highlightSnippet || newDecision.summary || '',
-        content: mockDoc.content || newDecision.rationale || '',
-        relatedDecisionId: newId,
-        refBadge: `Ref: ${Object.keys(evidence).length + 1}`
-      };
-      setEvidence(prev => ({ ...prev, [docId]: createdEvidence }));
+    try {
+      if (supportingDoc) {
+        await fetch('/api/evidence', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            id: docId,
+            title: supportingDoc.title || `${newDecision.title} — supporting record`,
+            type: supportingDoc.type || 'RFC',
+            author: supportingDoc.author || newDecision.owner || 'Unattributed',
+            date: nowDate,
+            hash: `sha256:${newId.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+            verified: false,
+            department: newDecision.department || 'Unassigned',
+            highlightSnippet: supportingDoc.highlightSnippet || newDecision.summary || '',
+            content: supportingDoc.content || newDecision.rationale || '',
+            relatedDecisionId: newId
+          })
+        });
+      }
+
+      await fetch('/api/graph/nodes', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          id: newId,
+          label: newDecision.title || 'Untitled Decision',
+          type: 'decision',
+          subtitle: newDecision.department || 'Unassigned',
+          category: newDecision.department || 'Unassigned',
+          date: nowDate,
+          x: 400,
+          y: 300,
+          confidenceScore: confidence,
+          status: newDecision.status || 'Pending',
+          owner: newDecision.owner || 'Unattributed',
+          description: newDecision.summary || '',
+          rationale: newDecision.rationale || '',
+          tags: newDecision.tags || [],
+          evidenceCount: supportingDoc ? 1 : 0,
+          evidenceId: supportingDoc ? docId : undefined
+        })
+      });
+
+      await refreshSearch();
+      setSelectedDecisionId(newId);
+      setSelectedNodeId(newId);
+    } catch (err) {
+      console.error('Failed to record decision trace:', err);
     }
-
-    const createdDecision: DecisionItem = {
-      id: newId,
-      title: newDecision.title || 'Untitled Decision',
-      owner: newDecision.owner || 'Exec User',
-      ownerRole: newDecision.ownerRole || 'Technical Director',
-      ownerAvatar: newDecision.owner ? newDecision.owner.split(' ').map(n => n[0]).join('') : 'EU',
-      department: newDecision.department || 'Executive Operations',
-      date: newDecision.date || new Date().toISOString().slice(0, 16).replace('T', ' '),
-      status: newDecision.status || 'Approved',
-      confidence: calculatedConf,
-      confidenceBreakdown: breakdown,
-      impact: newDecision.impact || 'High',
-      summary: newDecision.summary || 'Trace generated via Institutional Memory wizard.',
-      rationale: newDecision.rationale || 'Operational mandate based on evidentiary audit.',
-      alternativesConsidered: newDecision.alternativesConsidered || ['Status quo / defer decision'],
-      linkedNodeIds: [newId, docId],
-      primaryEvidenceId: docId,
-      tags: newDecision.tags && newDecision.tags.length ? newDecision.tags : ['NewTrace', '2024']
-    };
-
-    // Live update Ledger
-    setDecisions(prev => [createdDecision, ...prev]);
-
-    // Live update Graph
-    const newNode: GraphNode = {
-      id: newId,
-      label: createdDecision.title,
-      type: 'decision',
-      subtitle: createdDecision.ownerRole,
-      category: createdDecision.department,
-      date: createdDecision.date,
-      x: 480 + (Math.random() * 80 - 40),
-      y: 200 + (Math.random() * 80 - 40),
-      confidenceScore: calculatedConf,
-      status: createdDecision.status,
-      owner: createdDecision.owner,
-      description: createdDecision.summary,
-      tags: createdDecision.tags || [],
-      evidenceCount: 1,
-      evidenceId: docId
-    };
-    setGraphNodes(prev => [...prev, newNode]);
-
-    // Live update Timeline
-    const newTimelineEvent: TimelineEvent = {
-      id: `TL-${newId}`,
-      date: createdDecision.date.split(' ')[0],
-      time: createdDecision.date.split(' ')[1] || '12:00',
-      title: createdDecision.title,
-      actor: createdDecision.owner,
-      actorRole: createdDecision.ownerRole,
-      type: createdDecision.status === 'Approved' ? 'decision_confirmed' : 'decision_pending',
-      description: createdDecision.summary,
-      relatedDecisionId: newId,
-      relatedEvidenceId: docId,
-      branch: 'root',
-      status: createdDecision.status === 'Approved' ? 'confirmed' : 'pending'
-    };
-    setTimelineEvents(prev => [newTimelineEvent, ...prev]);
-
-    // Select the new item
-    setSelectedDecisionId(newId);
-    setSelectedNodeId(newId);
   };
+
+  const createEdge = async (
+    source: string,
+    target: string,
+    label: GraphEdge['label'],
+    description?: string
+  ) => {
+    try {
+      const res = await fetch('/api/graph/edges', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ source, target, label, description })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to create relationship');
+      }
+      await refreshSearch();
+    } catch (err) {
+      console.error('Failed to create edge:', err);
+    }
+  };
+
+  const updateNodePosition = async (id: string, x: number, y: number) => {
+    // Optimistic: the canvas already moved the node, so only persist here.
+    setGraphNodes(prev => prev.map(n => (n.id === id ? { ...n, x, y } : n)));
+    try {
+      await fetch(`/api/graph/nodes/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ x, y })
+      });
+    } catch (err) {
+      console.error('Failed to persist node position:', err);
+    }
+  };
+
+  const updateNodeFields = async (id: string, patch: Partial<GraphNode>) => {
+    try {
+      const res = await fetch(`/api/graph/nodes/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(patch)
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to update node');
+      }
+      await refreshSearch();
+    } catch (err) {
+      console.error('Failed to update node:', err);
+    }
+  };
+
+  // ----------------------------------------------------------
+  // Why Chat — grounded answers from /api/chat
+  // ----------------------------------------------------------
 
   const sendChatMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -301,162 +449,104 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       text: text.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-
     setChatMessages(prev => [...prev, userMsg]);
 
-    // Deterministic intelligence engine
-    const queryLower = text.toLowerCase();
-    let replyText = '';
-    let confidenceScore = 80;
-    let confidenceBadge: ChatMessage['confidenceBadge'] = 'Strong Confidence';
-    let confidenceLevel: ChatMessage['confidenceLevel'] = 'strong';
-    let citations: CitationReference[] = [];
-    let activeRefId: string | undefined = undefined;
-    let traceabilityWarning = undefined;
-    let graphFocusNodes: string[] = [];
+    const asstId = `MSG-AI-${Date.now()}`;
+    setChatMessages(prev => [
+      ...prev,
+      {
+        id: asstId,
+        sender: 'assistant',
+        text: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        citations: []
+      }
+    ]);
 
-    if (queryLower.includes('cloud-native') || queryLower.includes('pivot') || queryLower.includes('2022') || queryLower.includes('scalability')) {
-      replyText = `The pivot to a cloud-native architecture in Q3 2022 was driven primarily by three compounding factors identified in the Q2 Scalability Assessment. Chiefly, legacy on-premise infrastructure was resulting in a 40% increase in deployment bottlenecks [Ref 1], and our primary competitor's shift necessitated faster time-to-market.`;
-      confidenceScore = 94;
-      confidenceBadge = 'Strong Confidence';
-      confidenceLevel = 'strong';
-      activeRefId = 'REF-1';
-      graphFocusNodes = ['DEC-101', 'REF-1'];
-      citations = [
-        {
-          id: 'CIT-1',
-          docTitle: 'Q2 Scalability Assessment.pdf',
-          docType: 'PDF',
-          author: 'S. Chen (VP Eng)',
-          date: '2022-07-14',
-          hash: 'sha256:3a91b2c4...',
-          evidenceId: 'REF-1',
-          snippet: 'Operating at 92% capacity during peak hours; deployment bottlenecks increased 40% quarter-over-quarter.',
-          refLabel: '[Ref 1]'
+    const history = chatMessages
+      .filter(m => m.id !== 'MSG-WELCOME')
+      .map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
+
+    try {
+      const res = await fetch('/api/chat?stream=true', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ messages: [...history, { role: 'user', content: text.trim() }] })
+      });
+      if (!res.body) throw new Error('No response stream');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let sawMeta = false;
+      let done = false;
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (!value) continue;
+
+        for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6);
+          if (payload === '[DONE]') { done = true; break; }
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.content) {
+              fullText += parsed.content;
+              setChatMessages(prev =>
+                prev.map(m => (m.id === asstId ? { ...m, text: m.text + parsed.content } : m))
+              );
+            } else if (parsed.meta) {
+              sawMeta = true;
+              const score: number = parsed.confidenceScore ?? 0;
+              setChatMessages(prev =>
+                prev.map(m => m.id === asstId ? {
+                  ...m,
+                  citations: parsed.citations || [],
+                  confidenceScore: score,
+                  confidenceLevel: parsed.confidenceLevel,
+                  confidenceBadge:
+                    score >= 80 ? 'Strong Confidence'
+                      : score >= 55 ? 'Moderate Confidence'
+                        : score >= 25 ? 'Weak Confidence'
+                          : 'No Evidence',
+                  graphFocusNodes: parsed.graphFocusNodes || [],
+                  fallbackReason: parsed.fallbackReason
+                } : m)
+              );
+              if (parsed.graphFocusNodes?.length) setSelectedNodeId(parsed.graphFocusNodes[0]);
+            }
+          } catch {
+            /* ignore malformed SSE frames */
+          }
         }
-      ];
-    } else if (queryLower.includes('budget') || queryLower.includes('approval') || queryLower.includes('cfo') || queryLower.includes('procureit')) {
-      replyText = `Records indicate verbal approval was likely given during the August Executive Offsite [Ref 2]. However, formal sign-off in the procurement system (ProcureIT) is missing for the final 15% overrun authorization.`;
-      confidenceScore = 48;
-      confidenceBadge = 'Weak Confidence';
-      confidenceLevel = 'weak';
-      activeRefId = 'REF-2';
-      graphFocusNodes = ['DEC-2023-090', 'REF-2'];
-      traceabilityWarning = {
-        id: 'GAP-PROCUREIT',
-        type: 'traceability_gap' as const,
-        message: 'Traceability gap detected. Recommending audit of Q3 Procurement Logs.',
-        remediation: 'Initiate formal procurement audit to reconcile verbal sign-off with ProcureIT entry #88219.',
-        conflictingRecords: ['Offsite Budget Finalization Email', 'ProcureIT Master Ledger']
-      };
-      citations = [
-        {
-          id: 'CIT-2',
-          docTitle: 'Re: Offsite Budget Finalization',
-          docType: 'Email',
-          author: 'M. Davis (CFO)',
-          date: '2022-08-23',
-          hash: 'sha256:88bc92fa...',
-          evidenceId: 'REF-2',
-          snippet: "Yeah, go ahead with the buffer as discussed in the afternoon session. I'll formally sign off in ProcureIT when I'm back at my desk next week.",
-          refLabel: '[Ref 2]'
-        }
-      ];
-    } else if (queryLower.includes('neuraltech') || queryLower.includes('acquisition') || queryLower.includes('larson')) {
-      replyText = `The Acquisition of NeuralTech Labs (DEC-2023-089) was approved on 2023-10-24 led by E. Larson with a 92% confidence score. Technical due diligence validated 14 core patent applications and live benchmark confirming 99.2% accuracy on 12-hop graph reasoning benchmarks.`;
-      confidenceScore = 92;
-      confidenceBadge = 'Strong Confidence';
-      confidenceLevel = 'strong';
-      activeRefId = 'EVD-ACQ-089';
-      graphFocusNodes = ['DEC-2023-089', 'EVD-ACQ-089'];
-      citations = [
-        {
-          id: 'CIT-3',
-          docTitle: 'NeuralTech Labs M&A Technical Due Diligence',
-          docType: 'ADR',
-          author: 'E. Larson & Technical Committee',
-          date: '2023-10-20',
-          hash: 'sha256:91827364...',
-          evidenceId: 'EVD-ACQ-089',
-          snippet: 'Cleanroom codebase verified; 14 core patent applications transferred without copyleft encumbrances.',
-          refLabel: '[Ref 3]'
-        }
-      ];
-    } else if (queryLower.includes('strategy') || queryLower.includes('emea') || queryLower.includes('evans')) {
-      replyText = `The Q3 Strategy Shift (DCSN-9942) was confirmed on 2023-10-15 by CEO C. Evans. Following the Q2 risk analysis and the Oct 14 Board Meeting, the organization pivoted from aggressive expansion in EMEA to consolidation of North American assets.`;
-      confidenceScore = 82;
-      confidenceBadge = 'Strong Confidence';
-      confidenceLevel = 'strong';
-      activeRefId = 'DOC-RISK-V2';
-      graphFocusNodes = ['DCSN-9942', 'DOC-RISK-V2', 'EVT-BOARD-OCT14'];
-      citations = [
-        {
-          id: 'CIT-4',
-          docTitle: 'Risk Analysis V2: EMEA Operating Environment',
-          docType: 'Audit',
-          author: 'Corporate Risk Office',
-          date: '2023-10-12',
-          hash: 'sha256:6b29384f...',
-          evidenceId: 'DOC-RISK-V2',
-          snippet: 'Regulatory compliance overhead in EMEA increased 18% with projected €4.2M compliance friction.',
-          refLabel: '[Ref 4]'
-        }
-      ];
-    } else if (queryLower.includes('auth') || queryLower.includes('reynolds') || queryLower.includes('contested')) {
-      replyText = `Deprecation of Legacy Auth V1 (DEC-2023-085) is currently contested (42% confidence). While security architects noted 38 non-expiring tokens during SOC 2, Data Engineering raised concerns that legacy batch ETL synchronization will break without prior adapter deployments.`;
-      confidenceScore = 42;
-      confidenceBadge = 'Weak Confidence';
-      confidenceLevel = 'weak';
-      activeRefId = 'EVD-AUTH-085';
-      graphFocusNodes = ['DEC-2023-085', 'EVD-AUTH-085'];
-      traceabilityWarning = {
-        id: 'WARN-CONFLICT-AUTH',
-        type: 'conflicting_evidence' as const,
-        message: 'Conflicting evidence detected: Engineering Director flagged downstream breakages in batch sync.',
-        remediation: 'Hold hard cutoff until batch ETL pipeline adapts gRPC credentials.'
-      };
-      citations = [
-        {
-          id: 'CIT-5',
-          docTitle: 'Auth V1 Sunsetting Security Risk Matrix',
-          docType: 'Audit',
-          author: 'J. Reynolds',
-          date: '2023-10-21',
-          hash: 'sha256:02938475...',
-          evidenceId: 'EVD-AUTH-085',
-          snippet: '38 legacy API keys active without rotation; downstream ETL dependencies unmapped.',
-          refLabel: '[Ref 5]'
-        }
-      ];
-    } else {
-      replyText = 'No sufficiently supported evidence was found in the institutional memory for this inquiry. Verify that relevant documents and decision transcripts have been ingested into the knowledge vault.';
-      confidenceScore = 8;
-      confidenceBadge = 'No Evidence';
-      confidenceLevel = 'not_found';
+      }
+
+      if (!sawMeta) {
+        setChatMessages(prev =>
+          prev.map(m => m.id === asstId ? {
+            ...m,
+            confidenceScore: fullText ? 60 : 0,
+            confidenceLevel: fullText ? 'weak' : 'not_found',
+            confidenceBadge: fullText ? 'Moderate Confidence' : 'No Evidence'
+          } : m)
+        );
+      }
+    } catch (err) {
+      console.error('Chat request failed:', err);
+      setChatMessages(prev =>
+        prev.map(m => m.id === asstId ? {
+          ...m,
+          text:
+            'The answer service is unreachable right now, so no grounded answer can be produced. ' +
+            'No response is being generated from memory — reconnect and ask again.',
+          confidenceScore: 0,
+          confidenceLevel: 'not_found',
+          confidenceBadge: 'No Evidence'
+        } : m)
+      );
     }
-
-    if (activeRefId) {
-      setActiveEvidenceRef(activeRefId);
-      setSelectedEvidenceId(activeRefId);
-    }
-
-    const aiMsg: ChatMessage = {
-      id: `MSG-AI-${Date.now()}`,
-      sender: 'assistant',
-      text: replyText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      confidenceScore,
-      confidenceBadge,
-      confidenceLevel,
-      activeRefId,
-      citations,
-      graphFocusNodes,
-      traceabilityWarning
-    };
-
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, aiMsg]);
-    }, 450);
   };
 
   const exportLedgerCSV = () => {
@@ -471,13 +561,18 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       `"${d.department}"`
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', encodeURI(csvContent));
     link.setAttribute('download', `aletheia_decision_ledger_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const askWhyInChat = (query: string) => {
+    setActiveTab('why-chat');
+    setIsDecisionDetailOpen(false);
+    void sendChatMessage(query);
   };
 
   return (
@@ -491,6 +586,16 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         evidence,
         timelineEvents,
         chatMessages,
+        searchQuery,
+        setSearchQuery,
+        isSearching,
+        hasSearched,
+        searchError,
+        lastQuery,
+        performSearch,
+        refreshSearch,
+        clearSearch,
+        storageMode,
         selectedDecisionId,
         selectedDecision,
         selectedNodeId,
@@ -530,6 +635,9 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         jumpToGraphForDecision,
         askWhyInChat,
         addDecisionTrace,
+        createEdge,
+        updateNodePosition,
+        updateNodeFields,
         sendChatMessage,
         exportLedgerCSV
       }}

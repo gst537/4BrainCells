@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server';
-import { addEdge } from '../../../../lib/db';
-import { requireAuth } from '../../../../lib/auth';
+import { addEdge, deleteEdge, getGraph } from '../../../../lib/db';
+import { requireRole } from '../../../../lib/auth';
 
-const VALID_LABELS = new Set(['SUPPORTS', 'PRECEDES', 'TRIGGERED_BY', 'AUTHORED_BY', 'CONTRADICTS', 'DEPENDS_ON', 'REVERSES']);
+const VALID_LABELS = new Set([
+  'SUPPORTS', 'PRECEDES', 'TRIGGERED_BY', 'AUTHORED_BY', 'CONTRADICTS',
+  'DEPENDS_ON', 'REVERSES', 'RESULTED_IN', 'DISCUSSED_AT', 'FOLLOWED_BY'
+]);
+
+/** GET /api/graph/edges — all edges from the live datastore. */
+const getHandler = async () => {
+  try {
+    const { edges } = await getGraph();
+    return NextResponse.json({ edges, count: edges.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch edges';
+    console.error('Error fetching edges:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+};
 
 const postHandler = async (request: Request) => {
   try {
@@ -30,10 +45,27 @@ const postHandler = async (request: Request) => {
 
     const saved = await addEdge(edge);
     return NextResponse.json({ success: true, edge: saved });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to add edge';
     console.error('Error adding edge:', error);
-    return NextResponse.json({ error: error.message || 'Failed to add edge' }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 };
 
-export const POST = requireAuth(postHandler);
+const deleteHandler = async (request: Request) => {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing edge id' }, { status: 400 });
+    await deleteEdge(id);
+    return NextResponse.json({ success: true, id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete edge';
+    console.error('Error deleting edge:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+};
+
+export const GET = requireRole('viewer', getHandler);
+export const POST = requireRole('contributor', postHandler);
+export const DELETE = requireRole('contributor', deleteHandler);

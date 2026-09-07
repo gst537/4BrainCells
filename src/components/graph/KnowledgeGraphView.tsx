@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useMemory } from '@/context/MemoryContext';
+import { SearchEmptyState } from '@/components/layout/SearchEmptyState';
 import { useAuth } from '@/context/AuthContext';
 import { GraphNode, GraphEdge } from '@/types';
 import { 
@@ -35,7 +36,10 @@ export const KnowledgeGraphView: React.FC = () => {
     toggleExpandTrace,
     askWhyInChat,
     selectEvidence,
-    setIsDocumentModalOpen
+    setIsDocumentModalOpen,
+    createEdge,
+    updateNodeFields,
+    updateNodePosition
   } = useMemory();
   const { canEdit, token } = useAuth();
 
@@ -73,17 +77,12 @@ export const KnowledgeGraphView: React.FC = () => {
     setPan({ x: 0, y: 0 });
   };
 
-  // Step 5: Create edge via API
+  // Create a relationship, then re-resolve the subgraph so the edge actually appears.
   const handleCreateEdge = async (source: GraphNode, target: GraphNode, label: GraphEdge['label']) => {
     if (!token) return;
     setLinkSaving(true);
     try {
-      await fetch('/api/graph/edges', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ source: source.id, target: target.id, label })
-      });
-      // Optimistic UI: edge will show on next graph fetch; for now close picker
+      await createEdge(source.id, target.id, label);
     } catch (e) {
       console.error('Failed to create edge', e);
     } finally {
@@ -94,15 +93,15 @@ export const KnowledgeGraphView: React.FC = () => {
     }
   };
 
-  // Step 6: Save edited node via PATCH
+  // Persist node edits, then re-resolve so the canvas renders the saved values.
   const handleSaveEdit = async () => {
     if (!selectedNode || !token) return;
     setEditSaving(true);
     try {
-      await fetch(`/api/graph/nodes/${selectedNode.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ label: editLabel, description: editDescription, rationale: editRationale })
+      await updateNodeFields(selectedNode.id, {
+        label: editLabel,
+        description: editDescription,
+        rationale: editRationale
       });
     } catch (e) {
       console.error('Failed to update node', e);
@@ -142,6 +141,11 @@ export const KnowledgeGraphView: React.FC = () => {
 
   const handleMouseUp = () => {
     setIsDraggingCanvas(false);
+    // Persist a manual placement so the arrangement survives a reload.
+    if (draggedNodeId && canEdit) {
+      const moved = nodePositions[draggedNodeId];
+      if (moved) void updateNodePosition(draggedNodeId, moved.x, moved.y);
+    }
     setDraggedNodeId(null);
   };
 
@@ -163,8 +167,17 @@ export const KnowledgeGraphView: React.FC = () => {
     return true;
   });
 
+  // Query-driven: nothing renders until a search resolves a subgraph.
+  if (graphNodes.length === 0) {
+    return (
+      <div className="flex-1 flex h-[calc(100vh-3.5rem)] overflow-hidden bg-[#101010]">
+        <SearchEmptyState subject="the knowledge graph" />
+      </div>
+    );
+  }
+
   return (
-    <div 
+    <div
       className="flex-1 flex h-[calc(100vh-3.5rem)] overflow-hidden bg-[#101010] relative select-none"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

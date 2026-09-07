@@ -1,17 +1,25 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMemory, NavigationTab } from '@/context/MemoryContext';
-import { 
-  Share2, 
-  TableProperties, 
-  Clock, 
+import { useAuth } from '@/context/AuthContext';
+import {
+  Share2,
+  TableProperties,
+  Clock,
   GitBranch,
-  Plus
+  Plus,
+  Shield
 } from 'lucide-react';
 
 export const AppSidebar: React.FC = () => {
   const { activeTab, setActiveTab, setIsNewTraceModalOpen } = useMemory();
+  const { role, canEdit } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const onAdminPage = pathname === '/admin';
 
   const navItems: { id: NavigationTab; label: string; icon: React.ReactNode }[] = [
     {
@@ -49,11 +57,14 @@ export const AppSidebar: React.FC = () => {
         {/* Navigation Items */}
         <nav className="space-y-1.5">
           {navItems.map(item => {
-            const isActive = activeTab === item.id;
+            const isActive = !onAdminPage && activeTab === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (onAdminPage) router.push('/');
+                }}
                 className={`relative w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all text-left group ${
                   isActive
                     ? 'bg-[#1c1c1c] text-[#F2F2F2] font-semibold'
@@ -75,33 +86,54 @@ export const AppSidebar: React.FC = () => {
               </button>
             );
           })}
+
+          {/* Admin-only entry */}
+          {role === 'admin' && (
+            <Link
+              href="/admin"
+              className={`relative w-full flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-medium transition-all text-left group ${
+                onAdminPage
+                  ? 'bg-[#1c1c1c] text-[#F2F2F2] font-semibold'
+                  : 'text-[#7F8C99] hover:text-[#d1d5db] hover:bg-[#1f1f1f]'
+              }`}
+            >
+              {onAdminPage && (
+                <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#00E5FF] rounded-r shadow-[0_0_8px_#00E5FF]" />
+              )}
+              <span className={`transition-colors ${onAdminPage ? 'text-[#00E5FF]' : 'text-[#7F8C99] group-hover:text-white'}`}>
+                <Shield className="w-4 h-4" />
+              </span>
+              <span>Admin</span>
+            </Link>
+          )}
         </nav>
       </div>
 
       {/* Bottom Section: Action Button & Profile */}
       <div className="p-4 border-t border-[#242424] space-y-3">
-        {/* New Decision Trace Button */}
-        <button
-          onClick={() => setIsNewTraceModalOpen(true)}
-          className="w-full bg-[#00E5FF] hover:bg-[#00c8d7] text-black font-semibold text-sm py-2.5 px-4 rounded-xl shadow-[0_0_15px_rgba(0,229,255,0.25)] hover:shadow-[0_0_20px_rgba(0,229,255,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
-        >
-          <span>New Decision Trace</span>
-        </button>
+        {/* New Decision Trace Button — writers only */}
+        {canEdit && (
+          <button
+            onClick={() => setIsNewTraceModalOpen(true)}
+            className="w-full bg-[#00E5FF] hover:bg-[#00c8d7] text-black font-semibold text-sm py-2.5 px-4 rounded-xl shadow-[0_0_15px_rgba(0,229,255,0.25)] hover:shadow-[0_0_20px_rgba(0,229,255,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Decision Trace</span>
+          </button>
+        )}
 
         {/* User Profile Card */}
         <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#141414] border border-[#242424]">
-          {/* Avatar Circle */}
           <div className="w-8 h-8 rounded-full bg-[#262626] border border-[#333333] flex items-center justify-center text-xs font-bold text-[#F2F2F2] shrink-0">
-            EU
+            {role ? role.slice(0, 2).toUpperCase() : '—'}
           </div>
-          
-          {/* Metadata */}
+
           <div className="flex flex-col min-w-0">
-            <span className="text-xs font-semibold text-[#F2F2F2] truncate">
-              Exec User
+            <span className="text-xs font-semibold text-[#F2F2F2] truncate capitalize">
+              {role || 'Not signed in'}
             </span>
             <span className="text-[11px] font-mono-tech text-[#7F8C99] truncate">
-              ID: 0x4f9a...
+              {canEdit ? 'read · write' : 'read only'}
             </span>
           </div>
         </div>

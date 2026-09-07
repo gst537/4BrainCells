@@ -24,10 +24,19 @@ export const GlobalSearchModal: React.FC = () => {
     selectNode,
     selectEvidence,
     setIsDocumentModalOpen,
-    setActiveTab
+    setActiveTab,
+    performSearch,
+    isSearching
   } = useMemory();
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  const runFullSearch = () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setIsSearchModalOpen(false);
+    void performSearch(q);
+  };
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -113,6 +122,7 @@ export const GlobalSearchModal: React.FC = () => {
             autoFocus
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') runFullSearch(); }}
             placeholder="Search decisions, people, documents, events, tags..."
             className="flex-1 bg-transparent text-sm text-white placeholder-[#7F8C99] outline-none"
           />
@@ -129,21 +139,45 @@ export const GlobalSearchModal: React.FC = () => {
           </kbd>
         </div>
 
-        {/* Results List */}
+        {/* Run a real institutional search (loads a fresh subgraph from the database) */}
+        {searchQuery.trim() && (
+          <button
+            onClick={runFullSearch}
+            disabled={isSearching}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 border-b border-[#242424] bg-[#141414] hover:bg-[#1b1b1b] transition-colors text-left group disabled:opacity-50"
+          >
+            <span className="text-xs text-[#F2F2F2]">
+              Search institutional memory for{' '}
+              <span className="text-[#00E5FF] font-semibold">&ldquo;{searchQuery.trim()}&rdquo;</span>
+            </span>
+            <span className="text-[10px] font-mono-tech text-[#7F8C99] group-hover:text-[#00E5FF] transition-colors shrink-0">
+              {isSearching ? 'Searching…' : 'Enter ↵'}
+            </span>
+          </button>
+        )}
+
+        {/* Results List — jump to something already loaded */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1 min-h-[160px]">
           {!searchQuery.trim() ? (
             <div className="py-12 text-center text-xs text-[#7F8C99] space-y-2">
               <p>Type to search across entire institutional memory.</p>
-              <div className="flex justify-center gap-2 text-[11px] font-mono-tech">
-                <span className="px-2 py-0.5 rounded bg-[#1f1f1f] text-[#00E5FF]">cloud-native</span>
-                <span className="px-2 py-0.5 rounded bg-[#1f1f1f] text-[#00E5FF]">budget</span>
-                <span className="px-2 py-0.5 rounded bg-[#1f1f1f] text-[#00E5FF]">NeuralTech</span>
-                <span className="px-2 py-0.5 rounded bg-[#1f1f1f] text-[#00E5FF]">Evans</span>
+              <div className="flex flex-wrap justify-center gap-2 text-[11px] font-mono-tech">
+                {['tech stack', 'pricing', 'hiring', 'compliance', 'retrieval'].map(ex => (
+                  <button
+                    key={ex}
+                    onClick={() => { setIsSearchModalOpen(false); void performSearch(ex); }}
+                    className="px-2 py-0.5 rounded bg-[#1f1f1f] text-[#00E5FF] hover:bg-[#262626] transition-colors"
+                  >
+                    {ex}
+                  </button>
+                ))}
               </div>
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="py-12 text-center text-xs text-[#7F8C99]">
-              No institutional records found matching &ldquo;{searchQuery}&rdquo;.
+            <div className="py-12 text-center text-xs text-[#7F8C99] px-6 leading-relaxed">
+              Nothing matching &ldquo;{searchQuery}&rdquo; in the currently loaded results.
+              <br />
+              Press <span className="text-[#00E5FF] font-mono-tech">Enter</span> to search the full institutional memory.
             </div>
           ) : (
             searchResults.map(res => (

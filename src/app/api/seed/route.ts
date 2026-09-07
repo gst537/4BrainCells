@@ -1,13 +1,35 @@
 import { NextResponse } from 'next/server';
-import { saveGraph } from '../../../lib/db';
-import { mockNodes, mockEdges } from '../../../data/mockData';
+import { seedDatabase, clearDatabase, getCounts } from '../../../lib/db';
+import { requireRole } from '../../../lib/auth';
 
-export async function GET() {
+/** GET /api/seed — report what is currently stored. */
+const getHandler = async () => {
+  const counts = await getCounts();
+  return NextResponse.json({ counts });
+};
+
+/**
+ * POST /api/seed — reload the Aletheia institutional corpus.
+ * Body: { action: 'seed' | 'clear' }.  Admin only: it is destructive.
+ */
+const postHandler = async (request: Request) => {
   try {
-    await saveGraph(mockNodes, mockEdges);
-    return NextResponse.json({ success: true, message: 'Database seeded with mockData.ts' });
-  } catch (error: any) {
+    const body = await request.json().catch(() => ({}));
+    const action = body.action === 'clear' ? 'clear' : 'seed';
+
+    if (action === 'clear') {
+      const result = await clearDatabase();
+      return NextResponse.json({ success: true, action, ...result, counts: await getCounts() });
+    }
+
+    const result = await seedDatabase();
+    return NextResponse.json({ success: true, action, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Seed failed';
     console.error('Seed error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+};
+
+export const GET = requireRole('viewer', getHandler);
+export const POST = requireRole('admin', postHandler);

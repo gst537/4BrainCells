@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import useSWR from 'swr';
 import { EvidenceViewer } from '@/components/EvidenceViewer';
 import { EvidenceUploadModal } from '@/components/EvidenceUploadModal';
+import { useMemory } from '@/context/MemoryContext';
 import { Upload } from 'lucide-react';
 
 const fetcher = (url: string) => {
@@ -15,6 +16,7 @@ export default function VaultPage() {
   const [selectedEvidence, setSelectedEvidence] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const { data, mutate } = useSWR('/api/evidence', fetcher);
+  const { refreshSearch } = useMemory();
   const extraDocuments = data?.documents || [];
 
   return (
@@ -41,7 +43,7 @@ export default function VaultPage() {
       <EvidenceUploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onConfirmed={() => mutate()}
+        onConfirmed={() => { void mutate(); void refreshSearch(); }}
       />
     </div>
   );

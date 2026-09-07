@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useMemory } from '@/context/MemoryContext';
+import { SearchEmptyState } from '@/components/layout/SearchEmptyState';
 import { DecisionItem, DecisionStatus } from '@/types';
 import { 
   Filter, 
@@ -89,9 +90,18 @@ export const DecisionLedgerView: React.FC = () => {
     return 'bg-[#FF4D4D]';
   };
 
+  // Query-driven: the ledger stays empty until a search loads decisions.
+  if (decisions.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col bg-[#101010] min-h-[calc(100vh-3.5rem)]">
+        <SearchEmptyState subject="the decision ledger" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col p-8 bg-[#101010] min-h-[calc(100vh-3.5rem)] select-none overflow-y-auto">
-      
+
       {/* Ledger Header matching Screenshot 2 */}
       <div className="flex items-start justify-between pb-6">
         <div>
