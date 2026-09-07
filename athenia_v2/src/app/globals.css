@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #101010;
+    --bg-sidebar: #181818;
+    --bg-panel: #151515;
+    --bg-panel-alt: #1B1B1B;
+    --bg-card: #1f1f1f;
+    --border-subtle: #242424;
+    --border-highlight: #333333;
+    
+    --cyan-primary: #00E5FF;
+    --cyan-secondary: #00C8D7;
+    --amber-warning: #FFB000;
+    --emerald-success: #00D95F;
+    --crimson-danger: #FF4D4D;
+    
+    --text-primary: #F2F2F2;
+    --text-muted: #7F8C99;
+  }
+
+  body {
+    background-color: #101010;
+    color: #F2F2F2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-x: hidden;
+  }
+
+  /* Monospace font for IDs, hashes, timestamps */
+  .font-mono-tech {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  /* Custom subtle scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #121212;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #262626;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3a3a;
+  }
+}
+
+/* Dotted grid canvas background for Knowledge Graph */
+.bg-dotted-grid {
+  background-color: #101010;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Glow effects matching cyber/enterprise UI */
+.glow-border-cyan {
+  border-color: #00E5FF;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.28), inset 0 0 8px rgba(0, 229, 255, 0.1);
+}
+
+.glow-cyan-subtle {
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+}
+
+.glow-amber-subtle {
+  box-shadow: 0 0 12px rgba(255, 176, 0, 0.2);
+}
+
+.glow-red-subtle {
+  box-shadow: 0 0 12px rgba(255, 77, 77, 0.2);
+}

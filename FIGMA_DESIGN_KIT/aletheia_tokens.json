@@ -1,0 +1,80 @@
+{
+  "name": "ALETHEIA Design Tokens (4BrainCells)",
+  "version": "1.0.0",
+  "color": {
+    "background": {
+      "base": { "value": "#07080c", "type": "color" },
+      "surface": { "value": "#0e1017", "type": "color" },
+      "surface-elevated": { "value": "#141624", "type": "color" },
+      "surface-border": { "value": "#232536", "type": "color" }
+    },
+    "brand": {
+      "cyan-primary": { "value": "#00f5ff", "type": "color" },
+      "cyan-hover": { "value": "#33f7ff", "type": "color" },
+      "cyan-glow": { "value": "rgba(0, 245, 255, 0.25)", "type": "color" },
+      "amber-decision": { "value": "#ffb800", "type": "color" },
+      "emerald-approved": { "value": "#10b981", "type": "color" },
+      "crimson-contested": { "value": "#ff4365", "type": "color" },
+      "indigo-document": { "value": "#818cf8", "type": "color" }
+    },
+    "text": {
+      "primary": { "value": "#ffffff", "type": "color" },
+      "secondary": { "value": "#a1a1aa", "type": "color" },
+      "muted": { "value": "#71717a", "type": "color" },
+      "cyan-accent": { "value": "#67e8f9", "type": "color" }
+    }
+  },
+  "typography": {
+    "fontFamilies": {
+      "sans": { "value": "Inter", "type": "fontFamilies" },
+      "mono": { "value": "JetBrains Mono", "type": "fontFamilies" }
+    },
+    "display-lg": {
+      "fontFamily": "{fontFamilies.sans}",
+      "fontSize": "48px",
+      "fontWeight": "700",
+      "lineHeight": "56px",
+      "letterSpacing": "-0.02em"
+    },
+    "headline-lg": {
+      "fontFamily": "{fontFamilies.sans}",
+      "fontSize": "32px",
+      "fontWeight": "600",
+      "lineHeight": "40px",
+      "letterSpacing": "-0.01em"
+    },
+    "body-md": {
+      "fontFamily": "{fontFamilies.sans}",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "lineHeight": "24px"
+    },
+    "body-sm": {
+      "fontFamily": "{fontFamilies.sans}",
+      "fontSize": "14px",
+      "fontWeight": "400",
+      "lineHeight": "20px"
+    },
+    "audit-mono": {
+      "fontFamily": "{fontFamilies.mono}",
+      "fontSize": "13px",
+      "fontWeight": "450",
+      "lineHeight": "18px",
+      "letterSpacing": "0.01em"
+    }
+  },
+  "borderRadius": {
+    "sm": { "value": "4px", "type": "borderRadius" },
+    "md": { "value": "8px", "type": "borderRadius" },
+    "lg": { "value": "12px", "type": "borderRadius" },
+    "xl": { "value": "16px", "type": "borderRadius" },
+    "full": { "value": "9999px", "type": "borderRadius" }
+  },
+  "spacing": {
+    "xs": { "value": "4px", "type": "spacing" },
+    "sm": { "value": "8px", "type": "spacing" },
+    "md": { "value": "16px", "type": "spacing" },
+    "lg": { "value": "24px", "type": "spacing" },
+    "xl": { "value": "40px", "type": "spacing" }
+  }
+}
