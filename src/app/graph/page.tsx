@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { GraphCanvas } from '@/components/GraphCanvas';
 import { NodeDrawer } from '@/components/NodeDrawer';
 import { AddNodeModal } from '@/components/AddNodeModal';
 import { mockNodes, mockEdges } from '@/data/mockData';
-import { GraphNode } from '@/types';
+import { GraphNode, GraphEdge } from '@/types';
 import { Plus } from 'lucide-react';
 
 const fetcher = (url: string) => {
@@ -16,14 +16,55 @@ const fetcher = (url: string) => {
   }).then(res => res.json());
 };
 
+const authedFetch = (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem('jwt');
+  return fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    }
+  });
+};
+
 export default function GraphPage() {
   const { data: graphData, error, isLoading } = useSWR('/api/graph', fetcher);
+  const { mutate } = useSWRConfig();
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [isAddNodeOpen, setIsAddNodeOpen] = useState(false);
 
   // Fallback to mock data if API fails or while loading
   const nodes = graphData?.nodes || mockNodes;
   const edges = graphData?.edges || mockEdges;
+
+  const handleCreateEdge = async (source: string, target: string, label: GraphEdge['label']) => {
+    try {
+      const res = await authedFetch('/api/graph/edges', {
+        method: 'POST',
+        body: JSON.stringify({ source, target, label })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to create edge');
+      }
+      await mutate('/api/graph');
+    } catch (err) {
+      console.error('Failed to create edge:', err);
+    }
+  };
+
+  const handleNodeMoved = async (id: string, x: number, y: number) => {
+    try {
+      await authedFetch(`/api/graph/nodes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ x, y })
+      });
+      await mutate('/api/graph');
+    } catch (err) {
+      console.error('Failed to persist node position:', err);
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0">
@@ -38,6 +79,8 @@ export default function GraphPage() {
             console.log('evidence', id);
           }}
           densityMode="executive"
+          onCreateEdge={handleCreateEdge}
+          onNodeMoved={handleNodeMoved}
         />
         <div className="absolute top-4 left-4 flex flex-col space-y-2">
           <h2 className="text-sm font-semibold tracking-wide text-white flex items-center space-x-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/10 backdrop-blur-md">

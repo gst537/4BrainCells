@@ -24,7 +24,8 @@ import {
   XCircle,
   Clock,
   ArrowRight,
-  Route
+  Route,
+  Link2
 } from 'lucide-react';
 
 interface GraphCanvasProps {
@@ -35,7 +36,11 @@ interface GraphCanvasProps {
   onSelectEvidence: (evidenceId: string) => void;
   highlightedNodeIds?: string[];
   densityMode: 'executive' | 'analyst';
+  onCreateEdge?: (source: string, target: string, label: GraphEdge['label'], description?: string) => void;
+  onNodeMoved?: (id: string, x: number, y: number) => void;
 }
+
+const EDGE_LABEL_OPTIONS: GraphEdge['label'][] = ['SUPPORTS', 'CONTRADICTS', 'REVERSES', 'AUTHORED_BY', 'DEPENDS_ON', 'TRIGGERED_BY', 'PRECEDES'];
 
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   nodes: initialNodes,
@@ -44,7 +49,9 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   onSelectNode,
   onSelectEvidence,
   highlightedNodeIds = [],
-  densityMode
+  densityMode,
+  onCreateEdge,
+  onNodeMoved
 }) => {
   const [nodes, setNodes] = useState<GraphNode[]>(initialNodes);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
@@ -62,6 +69,12 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [traceMode, setTraceMode] = useState(false);
   const [traceStartNode, setTraceStartNode] = useState<GraphNode | null>(null);
   const [traceEndNode, setTraceEndNode] = useState<GraphNode | null>(null);
+
+  // Edge (relationship) linking mode
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkSourceNode, setLinkSourceNode] = useState<GraphNode | null>(null);
+  const [pendingEdge, setPendingEdge] = useState<{ source: GraphNode; target: GraphNode } | null>(null);
+  const [didDrag, setDidDrag] = useState(false);
 
   // Hover state
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -151,6 +164,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       });
     } else if (draggedNodeId) {
       // Move dragged node
+      setDidDrag(true);
       setNodes(prev => prev.map(node => {
         if (node.id === draggedNodeId) {
           return {
@@ -166,7 +180,12 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
   const handleMouseUp = () => {
     setIsPanning(false);
+    if (draggedNodeId && didDrag && onNodeMoved) {
+      const movedNode = nodes.find(n => n.id === draggedNodeId);
+      if (movedNode) onNodeMoved(movedNode.id, movedNode.x, movedNode.y);
+    }
     setDraggedNodeId(null);
+    setDidDrag(false);
   };
 
   const handleNodeDragStart = (e: React.MouseEvent, node: GraphNode) => {
@@ -179,6 +198,18 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       } else {
         setTraceStartNode(node);
         setTraceEndNode(null);
+      }
+      return;
+    }
+
+    if (linkMode) {
+      if (!linkSourceNode) {
+        setLinkSourceNode(node);
+      } else if (linkSourceNode.id !== node.id) {
+        setPendingEdge({ source: linkSourceNode, target: node });
+        setLinkSourceNode(null);
+      } else {
+        setLinkSourceNode(null);
       }
       return;
     }
@@ -273,12 +304,33 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
         {/* Right Action Tools: Trace Mode & Zoom */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Edge / Relationship Linking Mode */}
+          <button
+            onClick={() => {
+              setLinkMode(!linkMode);
+              setLinkSourceNode(null);
+              setTraceMode(false);
+              setTraceStartNode(null);
+              setTraceEndNode(null);
+            }}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium backdrop-blur-md transition-all border shadow-lg ${
+              linkMode
+                ? 'bg-emerald-500 text-black font-semibold border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)]'
+                : 'bg-[#10121a]/90 text-zinc-300 border-white/10 hover:border-emerald-400/50 hover:text-white'
+            }`}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            <span>{linkMode ? 'Linking Mode Active' : 'Link Nodes'}</span>
+          </button>
+
           {/* Provenance Trace Route Mode */}
           <button
             onClick={() => {
               setTraceMode(!traceMode);
               setTraceStartNode(null);
               setTraceEndNode(null);
+              setLinkMode(false);
+              setLinkSourceNode(null);
             }}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium backdrop-blur-md transition-all border shadow-lg ${
               traceMode
@@ -333,6 +385,52 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 ? `Origin: ${traceStartNode.label} ➔ Click TARGET node to discover branch path` 
                 : `Active Path: ${traceStartNode.label} ➔ ${traceEndNode.label} (${tracedPathEdgeIds.size} hops)`}
           </span>
+        </div>
+      )}
+
+      {/* Link Mode Prompt Overlay */}
+      {linkMode && !pendingEdge && (
+        <div className="absolute top-18 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-2 rounded-full bg-emerald-950/90 border border-emerald-400/60 px-4 py-1.5 text-xs text-emerald-200 shadow-2xl backdrop-blur-xl">
+          <Link2 className="h-4 w-4 text-emerald-300" />
+          <span>
+            {!linkSourceNode
+              ? 'Click a SOURCE node to start a relationship'
+              : `Source: ${linkSourceNode.label} ➔ Click a TARGET node to link`}
+          </span>
+        </div>
+      )}
+
+      {/* Relationship Type Picker */}
+      {pendingEdge && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#0f111a] border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl p-5">
+            <h3 className="text-sm font-semibold text-white mb-1">Link Relationship</h3>
+            <p className="text-xs text-zinc-400 mb-4">
+              <span className="text-emerald-300">{pendingEdge.source.label}</span>
+              {' '}➔{' '}
+              <span className="text-cyan-300">{pendingEdge.target.label}</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {EDGE_LABEL_OPTIONS.map(label => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    onCreateEdge?.(pendingEdge.source.id, pendingEdge.target.id, label);
+                    setPendingEdge(null);
+                  }}
+                  className="px-2.5 py-2 rounded-lg text-[11px] font-mono font-medium border border-white/10 bg-[#1a1c29] text-zinc-300 hover:border-emerald-400/50 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPendingEdge(null)}
+              className="w-full py-2 rounded-lg text-xs font-medium text-zinc-400 hover:text-white border border-white/5 hover:border-white/20 transition-all"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -503,6 +601,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           const isConnected = activeConnectedNodeIds.has(node.id);
           const isTraceStart = traceStartNode?.id === node.id;
           const isTraceEnd = traceEndNode?.id === node.id;
+          const isLinkSource = linkSourceNode?.id === node.id;
           const colorStyles = getNodeColor(node.type);
 
           return (
@@ -517,6 +616,8 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                   ? `ring-2 ring-cyan-400 bg-[#161928] ${colorStyles.border} ${colorStyles.glow}`
                   : isTraceStart || isTraceEnd
                     ? 'ring-2 ring-cyan-300 bg-cyan-950/60 border-cyan-400 shadow-[0_0_25px_rgba(0,245,255,0.5)]'
+                    : isLinkSource
+                      ? 'ring-2 ring-emerald-300 bg-emerald-950/60 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.5)]'
                     : isHighlighted || isConnected
                       ? `bg-[#131522] ${colorStyles.border} shadow-[0_0_15px_rgba(0,245,255,0.2)]`
                       : 'bg-[#0f111a]/85 border-white/10 hover:border-white/30 hover:bg-[#151724]'

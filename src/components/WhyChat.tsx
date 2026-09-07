@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, CitationReference } from '@/types';
-import { sampleQueries, precalculatedAnswers } from '@/data/mockData';
+import { sampleQueries, precalculatedAnswers, mockNodes, findOfflineAnswer } from '@/data/mockData';
 import { 
   MessageSquareCode, 
   Send, 
@@ -49,6 +49,51 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
 
   const [inputQuery, setInputQuery] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const sessionIdRef = useRef<string>('');
+
+  // Resolve (or create) a persistent chat session id, then hydrate history
+  // from Postgres so a page refresh doesn't lose the conversation.
+  useEffect(() => {
+    const init = async () => {
+      let sessionId = typeof window !== 'undefined' ? localStorage.getItem('chatSessionId') : null;
+      if (!sessionId) {
+        sessionId = `sess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        if (typeof window !== 'undefined') localStorage.setItem('chatSessionId', sessionId);
+      }
+      sessionIdRef.current = sessionId;
+
+      try {
+        await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: sessionId, title: 'Why Chat Session' })
+        });
+
+        const res = await fetch(`/api/chat/sessions/${sessionId}/messages`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.messages?.length) {
+            setMessages(prev => [prev[0], ...data.messages]);
+          }
+        }
+      } catch (err) {
+        console.warn('Chat history unavailable, starting fresh session', err);
+      } finally {
+        setHistoryLoaded(true);
+      }
+    };
+    init();
+  }, []);
+
+  const persistMessage = (message: ChatMessage) => {
+    if (!sessionIdRef.current) return;
+    fetch(`/api/chat/sessions/${sessionIdRef.current}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message)
+    }).catch(err => console.warn('Failed to persist chat message', err));
+  };
 
   const handleSendQuery = async (queryText: string) => {
     if (!queryText.trim()) return;
@@ -61,6 +106,7 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
     };
 
     setMessages(prev => [...prev, userMessage]);
+    persistMessage(userMessage);
     setInputQuery('');
     setIsThinking(true);
 
@@ -84,10 +130,13 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
         body: JSON.stringify({ messages: apiMessages })
       });
 
-      if (!res.ok) {
-        throw new Error('API error');
+      // A non-OK response (auth expired, rate limited, server error) still
+      // degrades gracefully below rather than throwing — the body may itself
+      // be a normal SSE/JSON payload the server already downgraded to.
+      if (!res.ok && !res.body) {
+        throw new Error(`API error ${res.status}`);
       }
-      
+
       setIsThinking(false);
 
       const asstId = `asst-${Date.now()}`;
@@ -97,8 +146,8 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
           id: asstId,
           sender: 'assistant',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          confidenceScore: 95,
-          confidenceLevel: 'strong',
+          confidenceScore: undefined,
+          confidenceLevel: undefined,
           text: '',
           citations: [],
           graphFocusNodes: []
@@ -108,6 +157,11 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       if (!reader) throw new Error('No readable stream');
+
+      // Tracked locally (not just via setMessages) so we can persist the
+      // final message to Postgres once streaming finishes.
+      let fullText = '';
+      let metaPayload: Partial<ChatMessage> | null = null;
 
       let done = false;
       while (!done) {
@@ -126,12 +180,30 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
               try {
                 const parsed = JSON.parse(dataStr);
                 if (parsed.content) {
+                  fullText += parsed.content;
                   setMessages(prev => prev.map(m => {
                     if (m.id === asstId) {
                       return { ...m, text: m.text + parsed.content };
                     }
                     return m;
                   }));
+                } else if (parsed.meta) {
+                  metaPayload = {
+                    citations: parsed.citations || [],
+                    confidenceScore: parsed.confidenceScore,
+                    confidenceLevel: parsed.confidenceLevel,
+                    graphFocusNodes: parsed.graphFocusNodes || [],
+                    fallbackReason: parsed.fallbackReason
+                  };
+                  setMessages(prev => prev.map(m => {
+                    if (m.id === asstId) {
+                      return { ...m, ...metaPayload };
+                    }
+                    return m;
+                  }));
+                  if (parsed.graphFocusNodes?.length) {
+                    onFocusGraphNodes(parsed.graphFocusNodes);
+                  }
                 }
               } catch (e) {
                 console.error('Error parsing SSE data', e);
@@ -140,22 +212,38 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
           }
         }
       }
-    } catch (error) {
-      console.error('Chat error:', error);
-      setIsThinking(false);
-      const fallbackMsg = precalculatedAnswers[queryText];
-      if (fallbackMsg) {
-        setMessages(prev => [...prev, fallbackMsg]);
-      } else {
-        const errorMessage: ChatMessage = {
-          id: `err-${Date.now()}`,
-          sender: 'assistant',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'Sorry, I encountered an error connecting to the AI backend and no precalculated answer was found.',
-          confidenceScore: 0,
-          confidenceLevel: 'not_found'
+
+      // Safety net: if the stream ended without ever sending a meta event
+      // (unexpected server behavior), still surface an honest confidence gate
+      // instead of leaving the message with no confidence indicator.
+      if (!metaPayload) {
+        metaPayload = {
+          confidenceScore: fullText ? 60 : 0,
+          confidenceLevel: fullText ? 'weak' : 'not_found'
         };
-        setMessages(prev => [...prev, errorMessage]);
+        setMessages(prev => prev.map(m => {
+          if (m.id === asstId && m.confidenceScore === undefined) {
+            return { ...m, ...metaPayload };
+          }
+          return m;
+        }));
+      }
+
+      persistMessage({
+        id: asstId,
+        sender: 'assistant',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: fullText,
+        ...metaPayload
+      });
+    } catch (error) {
+      console.error('Chat error, degrading to offline fallback:', error);
+      setIsThinking(false);
+      const fallbackMsg = precalculatedAnswers[queryText] || findOfflineAnswer(queryText);
+      setMessages(prev => [...prev, fallbackMsg]);
+      persistMessage(fallbackMsg);
+      if (fallbackMsg.graphFocusNodes?.length) {
+        onFocusGraphNodes(fallbackMsg.graphFocusNodes);
       }
     }
   };
@@ -208,6 +296,11 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
 
       {/* Message Stream */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+        {!historyLoaded && (
+          <div className="flex items-center justify-center py-2 text-[11px] font-mono text-zinc-500">
+            Loading conversation history…
+          </div>
+        )}
         {messages.map(msg => {
           const isUser = msg.sender === 'user';
 
@@ -284,8 +377,8 @@ Select a prompt below or type your inquiry to trace organizational memory:`,
                         <div
                           key={cIdx}
                           onClick={() => {
-                            // Find evidence or open viewer
-                            onSelectEvidence(cite.id.includes('RFC') ? 'EVD-RFC-042' : cite.id.includes('ADR') ? 'EVD-ADR-089' : 'EVD-RFC-042');
+                            const linkedNode = mockNodes.find(n => n.id === cite.nodeId);
+                            if (linkedNode?.evidenceId) onSelectEvidence(linkedNode.evidenceId);
                             if (cite.nodeId) onFocusGraphNodes([cite.nodeId]);
                           }}
                           className="group cursor-pointer rounded-xl bg-[#0c0e17] p-2.5 border border-white/10 hover:border-cyan-400/50 hover:bg-[#121420] transition-all"

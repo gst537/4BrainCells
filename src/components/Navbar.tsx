@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import useSWR from 'swr';
 import { usePathname } from 'next/navigation';
 import { 
   GitBranch, 
@@ -30,6 +31,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSearch
 }) => {
   const pathname = usePathname();
+  const { data: health } = useSWR('/api/health', (url: string) => fetch(url).then(r => r.json()), {
+    refreshInterval: 30000
+  });
+  const dbInMemory = health?.db === 'in-memory';
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1720px] items-center justify-between px-4 sm:px-6">
@@ -63,6 +68,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="font-mono text-zinc-400">94 Decisions</span>
             <span className="text-zinc-600">•</span>
             <span className="font-mono text-zinc-400">412 Verified Citations</span>
+            {health && (
+              <>
+                <span className="text-zinc-600">•</span>
+                <span
+                  title={dbInMemory ? 'PostgreSQL unreachable — running on in-memory storage. Data will not persist.' : 'Connected to PostgreSQL'}
+                  className={`inline-flex items-center gap-1 font-mono ${dbInMemory ? 'text-amber-400' : 'text-emerald-400'}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${dbInMemory ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                  {dbInMemory ? 'DB Offline (in-memory)' : 'DB Connected'}
+                </span>
+              </>
+            )}
           </div>
         </div>
 

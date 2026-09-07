@@ -27,7 +27,7 @@ export interface GraphEdge {
   id: string;
   source: string;
   target: string;
-  label: 'SUPPORTS' | 'PRECEDES' | 'TRIGGERED_BY' | 'AUTHORED_BY' | 'CONTRADICTS' | 'DEPENDS_ON';
+  label: 'SUPPORTS' | 'PRECEDES' | 'TRIGGERED_BY' | 'AUTHORED_BY' | 'CONTRADICTS' | 'DEPENDS_ON' | 'REVERSES';
   confidence: number;
   description?: string;
 }

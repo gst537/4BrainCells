@@ -22,17 +22,21 @@ interface EvidenceViewerProps {
   selectedEvidenceId: string;
   onSelectEvidenceId: (id: string) => void;
   onSelectDecision: (decisionId: string) => void;
+  extraDocuments?: EvidenceDocument[];
 }
 
 export const EvidenceViewer: React.FC<EvidenceViewerProps> = ({
   selectedEvidenceId,
   onSelectEvidenceId,
-  onSelectDecision
+  onSelectDecision,
+  extraDocuments = []
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
 
-  const docList = Object.values(mockEvidence);
-  const currentDoc: EvidenceDocument = mockEvidence[selectedEvidenceId] || docList[0];
+  const merged: Record<string, EvidenceDocument> = { ...mockEvidence };
+  extraDocuments.forEach(doc => { merged[doc.id] = doc; });
+  const docList = Object.values(merged);
+  const currentDoc: EvidenceDocument = merged[selectedEvidenceId] || docList[0];
 
   const handleCopyHash = () => {
     navigator.clipboard.writeText(currentDoc.hash);

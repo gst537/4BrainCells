@@ -662,3 +662,68 @@ To prevent institutional hallucination, this query is bounded. Possible causes:
     graphFocusNodes: []
   }
 };
+
+const STOPWORDS = new Set([
+  'the', 'a', 'an', 'to', 'of', 'in', 'on', 'for', 'and', 'or', 'was', 'were',
+  'is', 'are', 'did', 'do', 'does', 'we', 'us', 'our', 'that', 'this', 'why',
+  'who', 'what', 'when', 'currently', 'marked', 'as', 'instead', 'using',
+  'can', 'you', 'signed', 'off', 'decided', 'consider', 'considered'
+]);
+
+const tokenize = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOPWORDS.has(w));
+
+const NOT_FOUND_KEY = 'Who decided to acquire Acme Analytics in 2020?';
+
+/**
+ * Offline keyword-overlap matcher used when the live OpenAI/DB path is
+ * unavailable. Never throws — always returns an honest answer or an
+ * explicit low-confidence "no evidence found" message.
+ */
+export const findOfflineAnswer = (query: string): ChatMessage => {
+  const queryTokens = new Set(tokenize(query));
+  let bestKey: string | null = null;
+  let bestScore = 0;
+
+  for (const key of Object.keys(precalculatedAnswers)) {
+    if (key === NOT_FOUND_KEY) continue;
+    const keyTokens = tokenize(key);
+    if (keyTokens.length === 0) continue;
+    const overlap = keyTokens.filter(t => queryTokens.has(t)).length;
+    const score = overlap / keyTokens.length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestKey = key;
+    }
+  }
+
+  const MATCH_THRESHOLD = 0.3;
+  if (bestKey && bestScore >= MATCH_THRESHOLD) {
+    const match = precalculatedAnswers[bestKey];
+    return {
+      ...match,
+      id: `offline-${Date.now()}`,
+      timestamp: 'Just now'
+    };
+  }
+
+  const fallback = precalculatedAnswers[NOT_FOUND_KEY];
+  return {
+    ...fallback,
+    id: `offline-notfound-${Date.now()}`,
+    timestamp: 'Just now',
+    fallbackReason: `CONFIDENCE GATE TRIGGERED: No verified institutional records, RFCs, meeting minutes, or graph relationships found matching "${query}".`,
+    text: `⚠️ **Confidence Gate: Evidence Missing (Confidence: 12%)**
+
+ALETHEIA could not find any verified organizational records, Technical Review Board minutes, ADRs, or graph edges relevant to: "${query}"
+
+To prevent institutional hallucination, this query is bounded. Possible causes:
+1. The relevant records are not yet ingested into the graph.
+2. The entity or event was named differently in the source documents.
+3. The documents may reside in an unindexed vault.`
+  };
+};
