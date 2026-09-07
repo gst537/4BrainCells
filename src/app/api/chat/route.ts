@@ -5,10 +5,7 @@ import OpenAI from 'openai';
 
 const DATA_FILE_PATH = path.join(process.cwd(), 'data', 'graphMock.json');
 
-// Ensure the OpenAI API key is set
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+// Lazy initialize OpenAI inside POST handler to allow build without key
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +15,10 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
     const { messages } = await request.json();
 
