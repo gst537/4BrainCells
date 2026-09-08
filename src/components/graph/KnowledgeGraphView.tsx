@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useMemory } from '@/context/MemoryContext';
 import { SearchEmptyState } from '@/components/layout/SearchEmptyState';
 import { useAuth } from '@/context/AuthContext';
@@ -48,6 +48,46 @@ export const KnowledgeGraphView: React.FC = () => {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // High-performance DOM refs
+  const panRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const nodesRef = useRef<HTMLDivElement>(null);
+
+  // Sync React state to refs
+  useEffect(() => { panRef.current = pan; }, [pan]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+  // Auto-center on search results
+  useEffect(() => {
+    if (graphNodes.length === 0) return;
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    graphNodes.forEach(n => {
+      const pos = n;
+      if (pos.x < minX) minX = pos.x;
+      if (pos.x > maxX) maxX = pos.x;
+      if (pos.y < minY) minY = pos.y;
+      if (pos.y > maxY) maxY = pos.y;
+    });
+
+    const padding = 150;
+    const width = maxX - minX + 250; 
+    const height = maxY - minY + 200;
+
+    const viewportWidth = window.innerWidth - 320; // estimate for sidebar
+    const viewportHeight = window.innerHeight;
+    
+    let newZoom = Math.min(viewportWidth / (width + padding * 2), viewportHeight / (height + padding * 2));
+    newZoom = Math.max(0.4, Math.min(newZoom, 1));
+    
+    setZoom(newZoom);
+    setPan({
+      x: (viewportWidth - width * newZoom) / 2 - minX * newZoom,
+      y: (viewportHeight - height * newZoom) / 2 - minY * newZoom
+    });
+  }, [graphNodes]);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -123,10 +163,17 @@ export const KnowledgeGraphView: React.FC = () => {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDraggingCanvas) {
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+      panRef.current = { x: newX, y: newY };
+      
+      // Direct DOM manipulation for 60FPS pan
+      if (svgRef.current) {
+        svgRef.current.style.transform = `translate(${newX}px, ${newY}px) scale(${zoomRef.current})`;
+      }
+      if (nodesRef.current) {
+        nodesRef.current.style.transform = `translate(${newX}px, ${newY}px) scale(${zoomRef.current})`;
+      }
     } else if (draggedNodeId) {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -140,7 +187,11 @@ export const KnowledgeGraphView: React.FC = () => {
   };
 
   const handleMouseUp = () => {
-    setIsDraggingCanvas(false);
+    if (isDraggingCanvas) {
+      setIsDraggingCanvas(false);
+      // Flush high-perf pan state back to React
+      setPan(panRef.current);
+    }
     // Persist a manual placement so the arrangement survives a reload.
     if (draggedNodeId && canEdit) {
       const moved = nodePositions[draggedNodeId];
@@ -192,6 +243,8 @@ export const KnowledgeGraphView: React.FC = () => {
         
         {/* SVG Edge Connections */}
         <svg 
+          ref={svgRef}
+          overflow="visible"
           className="absolute inset-0 w-full h-full pointer-events-none z-0"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -212,19 +265,30 @@ export const KnowledgeGraphView: React.FC = () => {
             const x2 = p2.x + 80;
             const y2 = p2.y + 35;
 
-            const isDashed = edge.source === 'PER-EVANS' || edge.label === 'AUTHORED_BY';
+            const isDashed = edge.label === 'AUTHORED_BY' || edge.label === 'TRIGGERED_BY';
+
+            // Curved bezier path
+            const controlOffset = Math.abs(x1 - x2) * 0.4;
+            const pathD = `M ${x1} ${y1} C ${x1 + controlOffset} ${y1}, ${x2 - controlOffset} ${y2}, ${x2} ${y2}`;
+
+            // Semantic colors
+            let edgeColor = '#555555';
+            if (edge.label === 'SUPPORTS') edgeColor = '#10B981';
+            else if (edge.label === 'CONTRADICTS') edgeColor = '#EF4444';
+            else if (edge.label === 'PRECEDES' || edge.label === 'DEPENDS_ON') edgeColor = '#3B82F6';
+            else if (edge.label === 'AUTHORED_BY') edgeColor = '#9CA3AF';
+            else if (edge.label === 'TRIGGERED_BY') edgeColor = '#F59E0B';
+            else edgeColor = '#00E5FF';
 
             return (
               <g key={edge.id} className="transition-all duration-500">
-                <line
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  stroke={edge.relationshipStyle === 'verified' ? '#00E5FF' : '#555555'}
-                  strokeWidth={1.5}
-                  strokeDasharray={isDashed ? '4 4' : undefined}
-                  opacity={0.7}
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={edgeColor}
+                  strokeWidth={2}
+                  strokeDasharray={isDashed ? '5 5' : undefined}
+                  opacity={0.6}
                 />
               </g>
             );
@@ -233,12 +297,49 @@ export const KnowledgeGraphView: React.FC = () => {
 
         {/* Nodes Container */}
         <div 
+          ref={nodesRef}
           className="absolute inset-0 pointer-events-none"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0'
           }}
         >
+          {/* Edge Badges */}
+          {visibleEdges.map(edge => {
+            const sourceNode = graphNodes.find(n => n.id === edge.source);
+            const targetNode = graphNodes.find(n => n.id === edge.target);
+            if (!sourceNode || !targetNode) return null;
+
+            const p1 = getNodePos(sourceNode);
+            const p2 = getNodePos(targetNode);
+            const x1 = p1.x + 80;
+            const y1 = p1.y + 35;
+            const x2 = p2.x + 80;
+            const y2 = p2.y + 35;
+
+            // Approximate center for the badge
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+
+            let badgeBg = 'bg-[#555555]/20 border-[#555555]/50 text-[#9CA3AF]';
+            if (edge.label === 'SUPPORTS') badgeBg = 'bg-[#10B981]/15 border-[#10B981]/30 text-[#10B981]';
+            else if (edge.label === 'CONTRADICTS') badgeBg = 'bg-[#EF4444]/15 border-[#EF4444]/30 text-[#EF4444]';
+            else if (edge.label === 'PRECEDES' || edge.label === 'DEPENDS_ON') badgeBg = 'bg-[#3B82F6]/15 border-[#3B82F6]/30 text-[#3B82F6]';
+            else if (edge.label === 'AUTHORED_BY') badgeBg = 'bg-[#9CA3AF]/15 border-[#9CA3AF]/30 text-[#9CA3AF]';
+            else if (edge.label === 'TRIGGERED_BY') badgeBg = 'bg-[#F59E0B]/15 border-[#F59E0B]/30 text-[#F59E0B]';
+            else badgeBg = 'bg-[#00E5FF]/15 border-[#00E5FF]/30 text-[#00E5FF]';
+
+            return (
+              <div
+                key={`badge-${edge.id}`}
+                className={`absolute px-2 py-0.5 rounded-full border text-[10px] font-mono-tech font-bold tracking-wider backdrop-blur-sm -translate-x-1/2 -translate-y-1/2 transition-all duration-500 z-10 shadow-[0_0_10px_rgba(0,0,0,0.5)] ${badgeBg}`}
+                style={{ left: `${midX}px`, top: `${midY}px` }}
+              >
+                {edge.label}
+              </div>
+            );
+          })}
+
           {visibleNodes.map(node => {
             const pos = getNodePos(node);
             const isSelected = selectedNodeId === node.id;
