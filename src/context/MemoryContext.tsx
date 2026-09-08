@@ -82,6 +82,8 @@ interface MemoryContextType {
   // Modals & Drawers
   isDecisionDetailOpen: boolean;
   setIsDecisionDetailOpen: (open: boolean) => void;
+  isNotificationsOpen: boolean;
+  setIsNotificationsOpen: (open: boolean) => void;
   isNewTraceModalOpen: boolean;
   setIsNewTraceModalOpen: (open: boolean) => void;
   isDocumentModalOpen: boolean;
@@ -154,6 +156,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Modals
   const [isDecisionDetailOpen, setIsDecisionDetailOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isNewTraceModalOpen, setIsNewTraceModalOpen] = useState(false);
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
   const [isThreadModalOpen, setIsThreadModalOpen] = useState(false);
@@ -185,8 +188,9 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // ----------------------------------------------------------
   // Query-driven loading
   // ----------------------------------------------------------
+  const expandTraceRef = useRef(false);
 
-  const runSearch = useCallback(async (query: string) => {
+  const runSearch = useCallback(async (query: string, expandTraceOverride?: boolean) => {
     const q = query.trim();
     if (!q) return;
 
@@ -195,8 +199,10 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     lastQueryRef.current = q;
     setLastQuery(q);
 
+    const isExpanded = expandTraceOverride !== undefined ? expandTraceOverride : expandTraceRef.current;
+
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&depth=${isExpanded ? 2 : 1}`, { headers: authHeaders() });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Search failed (${res.status})`);
@@ -303,7 +309,14 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPersonModalOpen(true);
   };
 
-  const toggleExpandTrace = () => setIsExpandedTrace(prev => !prev);
+  const toggleExpandTrace = () => {
+    setIsExpandedTrace(prev => {
+      const next = !prev;
+      expandTraceRef.current = next;
+      if (lastQueryRef.current) void runSearch(lastQueryRef.current, next);
+      return next;
+    });
+  };
 
   const jumpToGraphForDecision = (decisionId: string) => {
     setActiveTab('knowledge-graph');
@@ -607,6 +620,8 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleExpandTrace,
         isDecisionDetailOpen,
         setIsDecisionDetailOpen,
+        isNotificationsOpen,
+        setIsNotificationsOpen,
         isNewTraceModalOpen,
         setIsNewTraceModalOpen,
         isDocumentModalOpen,

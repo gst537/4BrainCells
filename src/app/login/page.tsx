@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { GitBranch, Lock, ArrowRight, Activity } from 'lucide-react';
+import { GitBranch, Lock, ArrowRight, Activity, Users, Shield, Eye } from 'lucide-react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -11,16 +11,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeLogin = async (loginUser: string, loginPass: string) => {
     setError('');
     setIsLoading(true);
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: loginUser, password: loginPass }),
       });
 
       const data = await res.json();
@@ -36,57 +34,101 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#07080c] relative overflow-hidden p-4">
-      
-      {/* Background ambient light */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-900/20 rounded-full blur-[120px] pointer-events-none" />
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeLogin(username, password);
+  };
 
+  return (
+    <div className="w-full flex-1 min-h-screen flex items-center justify-center bg-[#101010] relative p-4 select-none">
+      
       <div className="relative w-full max-w-md z-10">
         
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-400/40 glow-cyan flex items-center justify-center mb-6">
-            <GitBranch className="h-8 w-8 text-cyan-400 animate-pulse" />
+        <div className="text-center mb-8">
+          <div className="mx-auto w-12 h-12 bg-[#101010] border border-[#333333] rounded-xl flex items-center justify-center mb-4">
+            <GitBranch className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white mb-2">ALETHEIA</h1>
-          <p className="text-zinc-400 text-sm">Institutional Memory & Decision Traceability</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">Aletheia</h1>
+          <p className="text-[#888888] text-sm">Institutional Memory & Decision Traceability</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-[#10121a]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-[#101010] border border-[#333333] rounded-xl p-6 shadow-xl">
           
-          <div className="flex items-center space-x-2 mb-6 pb-4 border-b border-white/5">
-            <Lock className="h-4 w-4 text-cyan-400" />
-            <h2 className="text-sm font-semibold text-white tracking-wide">SECURE ACCESS</h2>
+          <div className="flex items-center space-x-2 mb-6 pb-4 border-b border-[#333333]">
+            <Lock className="h-4 w-4 text-[#888888]" />
+            <h2 className="text-sm font-medium text-[#888888] tracking-wide">SECURE ACCESS</h2>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          {/* Quick Login Section (Demo) */}
+          <div className="mb-6">
+            <label className="block text-[11px] font-mono text-[#888888] uppercase tracking-wider mb-2">
+              Demo Access (Hackathon)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => executeLogin('admin', 'admin')}
+                disabled={isLoading}
+                className="flex flex-col items-center justify-center py-3 bg-[#101010] border border-[#333333] rounded-lg hover:border-white/40 transition-colors disabled:opacity-50"
+              >
+                <Shield className="h-4 w-4 text-cyan-400 mb-1" />
+                <span className="text-[10px] font-medium text-white uppercase tracking-wider">Admin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => executeLogin('contributor', 'admin')}
+                disabled={isLoading}
+                className="flex flex-col items-center justify-center py-3 bg-[#101010] border border-[#333333] rounded-lg hover:border-white/40 transition-colors disabled:opacity-50"
+              >
+                <Users className="h-4 w-4 text-blue-400 mb-1" />
+                <span className="text-[10px] font-medium text-white uppercase tracking-wider">Editor</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => executeLogin('viewer', 'admin')}
+                disabled={isLoading}
+                className="flex flex-col items-center justify-center py-3 bg-[#101010] border border-[#333333] rounded-lg hover:border-white/40 transition-colors disabled:opacity-50"
+              >
+                <Eye className="h-4 w-4 text-zinc-400 mb-1" />
+                <span className="text-[10px] font-medium text-white uppercase tracking-wider">Viewer</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="flex-1 h-px bg-[#333333]"></div>
+            <span className="text-xs font-mono text-[#555555] uppercase tracking-wider">OR MANUAL ENTRY</span>
+            <div className="flex-1 h-px bg-[#333333]"></div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-mono text-zinc-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-mono text-[#888888] uppercase tracking-wider mb-1.5">
                 Operator ID
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter any username..."
+                placeholder="Enter username"
                 required
-                className="w-full h-11 bg-[#161825] border border-white/10 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-zinc-600"
+                className="w-full h-10 bg-[#101010] border border-[#333333] rounded-lg px-3 text-sm text-white focus:outline-none focus:border-white/50 transition-colors placeholder:text-[#555555]"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono text-zinc-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-mono text-[#888888] uppercase tracking-wider mb-1.5">
                 Passkey
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Hint: 'admin'"
+                placeholder="Enter password"
                 required
-                className="w-full h-11 bg-[#161825] border border-white/10 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-zinc-600"
+                className="w-full h-10 bg-[#101010] border border-[#333333] rounded-lg px-3 text-sm text-white focus:outline-none focus:border-white/50 transition-colors placeholder:text-[#555555]"
               />
             </div>
 
@@ -100,7 +142,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-sm rounded-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(0,245,255,0.2)] hover:shadow-[0_0_25px_rgba(0,245,255,0.4)] mt-4"
+              className="w-full h-10 bg-white text-black font-semibold text-sm rounded-lg flex items-center justify-center space-x-2 hover:bg-zinc-200 transition-colors disabled:opacity-50 mt-2"
             >
               {isLoading ? (
                 <>

@@ -22,6 +22,7 @@ const getHandler = async (request: Request) => {
     const url = new URL(request.url);
     const q = (url.searchParams.get('q') || '').trim();
     const limit = Math.min(Number(url.searchParams.get('limit')) || 60, 200);
+    const depth = Math.min(Number(url.searchParams.get('depth')) || 1, 3);
 
     if (!q) {
       return NextResponse.json({
@@ -41,7 +42,7 @@ const getHandler = async (request: Request) => {
     }
 
     const matchedIds = matched.map((n: { id: string }) => n.id);
-    const { nodes, edges } = await getRelatedSubgraph(matchedIds);
+    const { nodes, edges } = await getRelatedSubgraph(matchedIds, depth);
 
     const subgraphIds = nodes.map((n: { id: string }) => n.id);
     const decisions = await getDecisionsByIds(subgraphIds);

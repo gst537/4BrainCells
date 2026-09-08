@@ -281,41 +281,77 @@ export const searchNodes = async (rawQuery: string, limit = 60): Promise<any[]> 
  * their immediate neighbours, and every edge among that combined set.
  */
 export const getRelatedSubgraph = async (
-  nodeIds: string[]
+  nodeIds: string[],
+  depth: number = 1
 ): Promise<{ nodes: any[]; edges: any[] }> => {
   if (nodeIds.length === 0) return { nodes: [], edges: [] };
 
   try {
     if (pool) {
-      const neighbourRes = await query(
-        `SELECT DISTINCT n.id, n.type, n.data
-           FROM nodes n
-          WHERE n.id = ANY($1)
-             OR n.id IN (SELECT target FROM edges WHERE source = ANY($1))
-             OR n.id IN (SELECT source FROM edges WHERE target = ANY($1))`,
-        [nodeIds]
+      let currentIds = [...nodeIds];
+      const allIds = new Set(currentIds);
+      let expandedIds = new Set<string>();
+
+      for (let i = 0; i < depth; i++) {
+        const neighbourRes = await query(
+          `SELECT DISTINCT target as id FROM edges WHERE source = ANY($1)
+           UNION
+           SELECT DISTINCT source as id FROM edges WHERE target = ANY($1)`,
+          [currentIds]
+        );
+        const newIds = neighbourRes.rows.map(r => r.id).filter(id => !allIds.has(id));
+        newIds.forEach(id => {
+          allIds.add(id);
+          if (i > 0) expandedIds.add(id); // mark as 2nd+ hop
+        });
+        currentIds = newIds;
+      }
+
+      const nodeRes = await query(
+        `SELECT id, type, data FROM nodes WHERE id = ANY($1)`,
+        [Array.from(allIds)]
       );
-      const allIds = neighbourRes.rows.map(r => r.id);
+      
       const edgeRes = await query(
         `SELECT id, source, target, label, confidence, description
            FROM edges
           WHERE source = ANY($1) AND target = ANY($1)`,
-        [allIds]
+        [Array.from(allIds)]
       );
-      return { nodes: neighbourRes.rows.map(rowToNode), edges: edgeRes.rows.map(rowToEdge) };
+
+      const nodes = nodeRes.rows.map(rowToNode).map(n => ({
+        ...n,
+        isExpanded: expandedIds.has(n.id)
+      }));
+
+      return { nodes, edges: edgeRes.rows.map(rowToEdge) };
     }
   } catch {
     console.warn('[db] Postgres subgraph unavailable — using in-memory traversal');
   }
 
-  const seedIds = new Set(nodeIds);
-  const expanded = new Set(nodeIds);
-  mem.edges.forEach(e => {
-    if (seedIds.has(e.source)) expanded.add(e.target);
-    if (seedIds.has(e.target)) expanded.add(e.source);
-  });
-  const nodes = mem.nodes.filter(n => expanded.has(n.id));
-  const edges = mem.edges.filter(e => expanded.has(e.source) && expanded.has(e.target));
+  let currentIds = [...nodeIds];
+  const allIds = new Set(currentIds);
+  const expandedIds = new Set<string>();
+
+  for (let i = 0; i < depth; i++) {
+    const newIds = new Set<string>();
+    mem.edges.forEach(e => {
+      if (currentIds.includes(e.source) && !allIds.has(e.target)) newIds.add(e.target);
+      if (currentIds.includes(e.target) && !allIds.has(e.source)) newIds.add(e.source);
+    });
+    newIds.forEach(id => {
+      allIds.add(id);
+      if (i > 0) expandedIds.add(id);
+    });
+    currentIds = Array.from(newIds);
+  }
+
+  const nodes = mem.nodes.filter(n => allIds.has(n.id)).map(n => ({
+    ...n,
+    isExpanded: expandedIds.has(n.id)
+  }));
+  const edges = mem.edges.filter(e => allIds.has(e.source) && allIds.has(e.target));
   return { nodes, edges };
 };
 

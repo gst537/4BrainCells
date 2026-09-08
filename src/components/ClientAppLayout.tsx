@@ -12,6 +12,7 @@ import { DocumentModal } from './modals/DocumentModal';
 import { ThreadModal } from './modals/ThreadModal';
 import { PersonModal } from './modals/PersonModal';
 import { GlobalSearchModal } from './modals/GlobalSearchModal';
+import { NotificationDrawer } from './drawers/NotificationDrawer';
 
 export function ClientAppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -53,6 +54,7 @@ export function ClientAppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Global Modals & Drawers */}
       <DecisionDetailDrawer />
+      <NotificationDrawer />
       <NewDecisionTraceModal />
       <DocumentModal />
       <ThreadModal />
